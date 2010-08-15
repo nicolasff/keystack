@@ -8,7 +8,7 @@ main() {
 
 	struct bt_node *root;
 	
-	root = bt_node_new(5);
+	root = bt_node_new(100);
 
 
 	struct bt_node *a0, *a1, *a2, *a3, *a4, *a5, *a6, *a7, *a8;
@@ -130,32 +130,40 @@ main() {
 	printf("\n\nroot:\n");bt_dump(root);
 	*/
 
+	bt_save(a0, "out.bin");
 	bt_dump(a0);
+
+	a0 = bt_load("out.bin");
+	bt_dump(a0);
+	return 0;
+	/*
 	bt_delete(a0, 'H');
 	bt_dump(a0);
 	bt_delete(a0, 'T');
 	bt_dump(a0);
+	*/
 
-	/*
 	int i, n = 10000;
+	
 	for(i = 1; i < n; i++) {
 		root = bt_insert(root, i, i+1, NULL);
-		int j = bt_lookup(root, i);
-		if(j != i+1) {
-			printf("at k=[%d]: %d\n", i, j);
+		struct bt_entry *e = bt_lookup(root, i); /* immediate read-back */
+		if(e->value != i+1) {
+			printf("at k=[%d]: %d\n", i, e->value);
 		}
 	}
+	printf("built.\n");
 
 	//bt_dump(root); return 0;
 	for(i = 1; i < n; i++) {
-		int j = bt_lookup(root, i);
-		if(j != i+1) {
-			printf("at k=[%d]: %d\n", i, j);
+		struct bt_entry *e = bt_lookup(root, i); /* read-back after the whole insertion */
+		if(e->value != i+1) {
+			printf("at k=[%d]: %d\n", i, e->value);
 		}
 	}
 	
-	tree_dot(root);
-	*/
+	bt_save(root, "large.bin");
+	printf("saved.\n");
 
 
 	/*

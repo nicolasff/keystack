@@ -1,6 +1,11 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <arpa/inet.h>
+#include <unistd.h>
 
 #include "bt.h"
 
@@ -136,6 +141,156 @@ bt_insert(struct bt_node *b, int k, int v, struct bt_node *right) {
 		}
 	}
 	return bt_root(b);
+}
+
+static void
+bt_write_block(int fd, struct bt_node *b, int delta, long id, long *maxid) {
+
+
+	int i;
+
+	size_t block_size = (1 + 1 + 2 * b->width + b->width + 1) * sizeof(long);
+
+	/* write in the proper position */
+	lseek(fd, delta + block_size * id, SEEK_SET);
+
+	/* write block id */
+	long block_id = htonl(id);
+	write(fd, &block_id, sizeof(long));
+
+	/* write block size */
+	long block_sz = htonl(b->n);
+	write(fd, &block_sz, sizeof(long));
+	
+	/* write block entries */
+	long first_child = *maxid, child = *maxid;
+	for(i = 0; i < b->width; i++) {
+		long k, v;
+		if(i < b->n) {
+			k = htonl(b->entries[i].key);
+			v = htonl(b->entries[i].value);
+		} else {
+			k = v = htonl(0);
+		}
+
+		write(fd, &k, sizeof(long));
+		write(fd, &v, sizeof(long));
+	}
+
+	/* write block links */
+	for(i = 0; i <= b->width; i++) {
+		long c;
+		if(i <= b->n) {
+			c = htonl(child++);
+			(*maxid)++;
+		} else {
+			c = htonl(0);
+		}
+		write(fd, &c, sizeof(long));
+	}
+
+	if(b->children[0] == NULL) { /* leaf */
+		*maxid = id + 1;
+		return;
+	}
+
+	for(i = 0; i <= b->width; i++) { /* write each child with a new id */
+		if(b->children[i]) {
+			bt_write_block(fd, b->children[i], delta, first_child, maxid);
+			first_child++;
+		}
+	}
+}
+
+int
+bt_save(struct bt_node *b, const char *filename) {
+
+	unlink(filename);
+	int fd = open(filename, O_WRONLY | O_CREAT);
+	if(!fd) {
+		return -1;
+	}
+	long count = 1, w = b->width;
+
+	int delta = sizeof(long) * 2;
+	bt_write_block(fd, b, delta, 0, &count);
+
+	lseek(fd, 0, SEEK_SET); /* rewind */
+
+	count = htonl(count-1); /* save number of nodes */
+	write(fd, &count, sizeof(long));
+
+	w = htonl(w); /* save width of nodes. */
+	write(fd, &w, sizeof(long));
+
+	close(fd);
+	chmod(filename, 0660);
+}
+
+struct bt_node *
+bt_load(const char *filename) {
+
+	int fd, i, j;
+	struct bt_node *nodes, *b;
+	long count, w;
+	
+	fd = open(filename, O_RDONLY);
+
+	if(!fd) {
+		return NULL;
+	}
+
+	read(fd, &count, sizeof(long));
+	count = ntohl(count);
+
+	read(fd, &w, sizeof(long));
+	w = ntohl(w);
+
+	printf("loading %ld nodes\n", count);
+	nodes = calloc((size_t)count, sizeof(struct bt_node));
+
+	for(i = 0; i < count; ++i) {
+		b = nodes + i;
+		printf("node %d (%p)\n", i, b);
+
+		long id, n, k, v, c;
+		read(fd, &id, sizeof(long));
+		id = ntohl(id);
+
+		read(fd, &n, sizeof(long));
+		n = ntohl(n);
+		b->n = n;
+		b->width = w;
+
+		b->entries = calloc((size_t)w, sizeof(struct bt_entry));
+		/* read k, v */
+		for(j = 0; j < w; ++j) {
+			read(fd, &k, sizeof(long));
+			read(fd, &v, sizeof(long));
+
+			if(j >= n) {
+				continue;
+			}
+			b->entries[j].key = ntohl(k);
+			b->entries[j].value = ntohl(v);
+			printf("key at %d = %c\n", j, b->entries[j].key);
+		}
+
+		nodes[i].children = calloc((size_t)(w+1), sizeof(struct bt_node*));
+		/* read children */
+		for(j = 0; j <= w; ++j) {
+			read(fd, &c, sizeof(long));
+
+			c = ntohl(c);
+			if(c != 0) {
+				b->children[j] = nodes + c;
+				printf("child at %d = %p\n", j, nodes + c);
+			}
+		}
+	}
+
+
+	return nodes;
 }
 
 struct bt_node *

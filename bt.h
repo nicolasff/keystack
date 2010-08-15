@@ -31,9 +31,16 @@ bt_lookup(struct bt_node *b, int k);
 struct bt_node *
 bt_delete(struct bt_node *b, int k);
 
+int
+bt_save(struct bt_node *b, const char *filename);
+
 void
 bt_dump(struct bt_node *b);
 
+struct bt_node *
+bt_load(const char *filename);
+
 void
 tree_dot(struct bt_node *b);
+
 #endif
