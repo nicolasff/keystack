@@ -38,11 +38,11 @@ bt_split(struct bt_node *b, int *key, int *value) {
 	memset(b->entries+pivot+1, 0, (b->width - pivot - 1) * sizeof(struct bt_entry));
 	memset(b->children+pivot+1, 0, (b->width - pivot - 1) * sizeof(struct bt_node));
 
-	// printf("n=%d in :", right->n); tree_dump(right);
+	// printf("n=%d in :", right->n); bt_dump(right);
 	return right;
 }
 
-int
+struct bt_entry *
 bt_lookup(struct bt_node *b, int k) {
 	
 	int i;
@@ -50,14 +50,14 @@ bt_lookup(struct bt_node *b, int k) {
 //	printf("look for %d in %p\n", k, b);
 	for(i = 0; i <= b->n; ++i) {
 		if(i != b->n && k == b->entries[i].key) { /* update */
-			return b->entries[i].value;
+			return b->entries + i;
 		}
 		if((i == b->n || k < b->entries[i].key) && b->children[i]) { /* there is more */
 			// printf("lookup under.\n");
 			return bt_lookup(b->children[i], k);
 		}
 	}
-	return -1;
+	return NULL;
 }
 
 static struct bt_node *
@@ -138,58 +138,117 @@ bt_insert(struct bt_node *b, int k, int v, struct bt_node *right) {
 	return bt_root(b);
 }
 
-static void
-tree_dump_border(struct bt_node *b) {
-	
-	int i;
+struct bt_node *
+bt_delete(struct bt_node *b, int k) {
 
-	printf("+");
-	for(i = 0; i < b->width * 3 -1; ++i) {
-		printf("-");
+	(void)b;
+	(void)k;
+#if 0
+	printf("Deleting %c in %p\n", k, b);
+
+	struct bt_entry *e = NULL;
+
+	struct bt_node *b_cur = b;
+	
+	/* look for the bt_node, as well as the bt_entry */
+	int i;
+	while(1) {
+		int go_down = 0;
+		for(i = 0; i <= b_cur->n; ++i) {
+			if(i != b_cur->n && k == b_cur->entries[i].key) { /* found */
+				e = b_cur->entries + i;
+				break;
+			}
+			if((i == b_cur->n || k < b_cur->entries[i].key) && b_cur->children[i]) { /* there is more */
+				b_cur = b_cur->children[i];
+				go_down = 1; /* go down a level */
+				break;
+			}
+		}
+		if(!go_down) {
+			break;
+		}
 	}
-	printf("+\n");
+
+	if(!e) { /* not found */
+		return b;
+	}
+
+	printf("found in bt_node=%p, bt_entry=%p: key=%c, i = %d\n", b_cur, e, e->key, i);
+
+	/* We need to consider several cases. */
+	/* if the node is a leaf, this is easy, let's just move its right neighbours a bit to the left */
+
+	if(b_cur->children[i] == NULL) { /* leaf, easiest case. */
+		int j;
+		for(j = i; j != b_cur->n - 1; ++j) {
+			b_cur->children[j] = b_cur->children[j+1];
+			b_cur->entries[j] = b_cur->entries[j+1];
+		}
+		b_cur->n--;
+
+		/* check that the size of the node is still acceptable */
+		if(b_cur->n >= b_cur->width/2) {
+			return b; /* still good. */
+		}
+
+		/* we must readjust the tree. */
+		printf("fffuuuu-\n");
+	} else {
+		printf("not a leaf.\n");
+
+	}
+
+#endif
+	return NULL;
 }
 
 void
-tree_dump(struct bt_node *b) {
+bt_dump_(struct bt_node *b, int indent) {
 
 	int i;
-	printf("%p:\n", b);
+	for(i = 0; i < indent; i++) printf("\t");
+	printf("%p: ", b);
 	if(!b) {
+		printf("\n");
 		return;
 	}
-	tree_dump_border(b);
 
-	for(i = 0; i < b->width; ++i) {
-		printf("|");
-		if(b->entries[i].key) {
-			printf("%2d", b->entries[i].key);
+	for(i = 0; i < b->n; ++i) {
+		if(i == 0) {
+			printf("[");
 		} else {
-			printf("  ");
+			printf(",");
+		}
+
+		if(b->entries[i].key) {
+			//printf("%2d", b->entries[i].key);
+			printf("%c", b->entries[i].key);
 		}
 	}
-	printf("|\n");
-	tree_dump_border(b);
+	printf("]\n");
 
 	for(i = 0; i < b->width+1; ++i) {
 		if(b->children[i]) {
-			printf("@%d -> %p\n", i, b->children[i]);
+			bt_dump_(b->children[i], indent+1);
 		}
 	}
-	printf("\n");
+	if(b->children[0] != NULL) {
+		printf("\n");
+	}
 
-	for(i = 0; i < b->width+1; ++i) {
-		if(b->children[i]) {
-			tree_dump(b->children[i]);
-		}
-	}
+}
+
+void
+bt_dump(struct bt_node *b) {
+
+	bt_dump_(b, 0);
 }
 
 void
 tree_dot(struct bt_node *b) {
 
 	unsigned int self = (unsigned int)(long)(void*)b;
-//	unsigned int parent = (unsigned int)(long)(void*)b->parent;
 
 	if(b->parent == NULL) {
 		printf("digraph G {\n");

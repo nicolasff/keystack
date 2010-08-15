@@ -25,11 +25,14 @@ bt_node_new(int width);
 struct bt_node *
 bt_insert(struct bt_node *b, int k, int v, struct bt_node *right);
 
-int
+struct bt_entry *
 bt_lookup(struct bt_node *b, int k);
 
+struct bt_node *
+bt_delete(struct bt_node *b, int k);
+
 void
-tree_dump(struct bt_node *b);
+bt_dump(struct bt_node *b);
 
 void
 tree_dot(struct bt_node *b);
