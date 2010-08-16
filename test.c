@@ -130,12 +130,13 @@ main() {
 	printf("\n\nroot:\n");bt_dump(root);
 	*/
 
+	/*
 	bt_save(a0, "out.bin");
 	bt_dump(a0);
 
 	a0 = bt_load("out.bin");
 	bt_dump(a0);
-	return 0;
+	*/
 	/*
 	bt_delete(a0, 'H');
 	bt_dump(a0);
@@ -143,7 +144,7 @@ main() {
 	bt_dump(a0);
 	*/
 
-	int i, n = 10000;
+	int i, n = 100000;
 	
 	for(i = 1; i < n; i++) {
 		root = bt_insert(root, i, i+1, NULL);
@@ -164,6 +165,9 @@ main() {
 	
 	bt_save(root, "large.bin");
 	printf("saved.\n");
+	root = bt_load("large.bin");
+	printf("loaded.\n");
+
 
 
 	/*

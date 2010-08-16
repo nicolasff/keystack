@@ -180,7 +180,7 @@ bt_write_block(int fd, struct bt_node *b, int delta, long id, long *maxid) {
 	/* write block links */
 	for(i = 0; i <= b->width; i++) {
 		long c;
-		if(i <= b->n) {
+		if(b->children[i]) {
 			c = htonl(child++);
 			(*maxid)++;
 		} else {
@@ -217,7 +217,7 @@ bt_save(struct bt_node *b, const char *filename) {
 
 	lseek(fd, 0, SEEK_SET); /* rewind */
 
-	count = htonl(count-1); /* save number of nodes */
+	count = htonl(count); /* save number of nodes */
 	write(fd, &count, sizeof(long));
 
 	w = htonl(w); /* save width of nodes. */
@@ -251,7 +251,6 @@ bt_load(const char *filename) {
 
 	for(i = 0; i < count; ++i) {
 		b = nodes + i;
-		printf("node %d (%p)\n", i, b);
 
 		long id, n, k, v, c;
 		read(fd, &id, sizeof(long));
@@ -273,7 +272,6 @@ bt_load(const char *filename) {
 			}
 			b->entries[j].key = ntohl(k);
 			b->entries[j].value = ntohl(v);
-			printf("key at %d = %c\n", j, b->entries[j].key);
 		}
 
 		nodes[i].children = calloc((size_t)(w+1), sizeof(struct bt_node*));
@@ -284,7 +282,6 @@ bt_load(const char *filename) {
 			c = ntohl(c);
 			if(c != 0) {
 				b->children[j] = nodes + c;
-				printf("child at %d = %p\n", j, nodes + c);
 			}
 		}
 	}
