@@ -37,7 +37,7 @@ bt_lookup(struct bt_node *b, int k) {
 
 //	printf("look for %d in %p\n", k, b);
 	for(i = 0; i <= b->n; ++i) {
-		if(i != b->n && k == b->entries[i].key) { /* update */
+		if(i != b->n && k == b->entries[i].key) { /* found */
 			return b->entries + i;
 		}
 		if((i == b->n || k < b->entries[i].key) && b->children[i]) { /* there is more */
@@ -56,7 +56,7 @@ bt_split_child(struct bt_node *x, int i, struct bt_node *y) {
 	z->n = t-1;
 
 	for(j = 0; j < t-1; j++) {
-		z->entries[j].key = y->entries[j+t].key;
+		z->entries[j] = y->entries[j+t];
 		y->entries[j+t].key = 0;
 		if(!y->leaf) {
 			z->children[j] = y->children[j + t];
@@ -74,14 +74,14 @@ bt_split_child(struct bt_node *x, int i, struct bt_node *y) {
 	x->children[i+1] = z;
 
 	for(j = x->n; j > i; j--) {
-		x->entries[j].key = x->entries[j-1].key;
+		x->entries[j] = x->entries[j-1];
 	}
-	x->entries[i].key = y->entries[t-1].key;
+	x->entries[i] = y->entries[t-1];
 	x->n++;
 }
 
 void
-bt_insert_nonfull(struct bt_node *x, int k) {
+bt_insert_nonfull(struct bt_node *x, int k, int v) {
 
 	int i = x->n - 1;
 
@@ -91,6 +91,7 @@ bt_insert_nonfull(struct bt_node *x, int k) {
 			i--;
 		}
 		x->entries[i+1].key = k;
+		x->entries[i+1].value = v;
 		x->n++;
 	} else {
 		while(i >= 0 && k < x->entries[i].key) {
@@ -104,21 +105,21 @@ bt_insert_nonfull(struct bt_node *x, int k) {
 				i++;
 			}
 		}
-		bt_insert_nonfull(x->children[i], k);
+		bt_insert_nonfull(x->children[i], k, v);
 	}
 }
 
 struct bt_node *
-bt_insert_2(struct bt_node *r, int k) {
+bt_insert(struct bt_node *r, int k, int v) {
 	if(r->n == r->width) {
 		struct bt_node *s = bt_node_new(r->width);
 		s->children[0] = r;
 		s->leaf = 0;
 		bt_split_child(s, 0, r);
-		bt_insert_nonfull(s, k);
+		bt_insert_nonfull(s, k, v);
 		return s;
 	} else {
-		bt_insert_nonfull(r, k);
+		bt_insert_nonfull(r, k, v);
 		return r;
 	}
 }

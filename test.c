@@ -8,31 +8,29 @@ main() {
 	struct bt_node *root;
 	int i, n;
 
-	
+	root = bt_node_new(5);
+	/*
 	n = 20;
 	
-	root = bt_node_new(5);
 	for(i = n; i >= 1; --i) {
-		root = bt_insert_2(root, i);
+		root = bt_insert(root, i, i+1);
 		bt_dump(root);
 	}
 	printf("----------------\n");
 	
 	root = bt_node_new(5);
 	for(i = 1; i <= n; ++i) {
-		root = bt_insert_2(root, i);
+		root = bt_insert(root, i, i+1);
 		bt_dump(root);
 	}
 	printf("----------------\n");
-	return 0;
+	*/
 
-	n = 20;
-	
+	n = 2000*1000;
+#if 1
 	for(i = n; i >= 4; i--) {
 		struct bt_entry *e;
-		printf("i=%d\n", i);
-		root = bt_insert_(root, i, i+1, NULL, NULL);
-		bt_dump(root);
+		root = bt_insert(root, i, i+1);
 		e = bt_lookup(root, i); /* immediate read-back */
 		if(e && e->value != i+1) {
 			printf("at k=[%d]: %d\n", i, e->value);
@@ -40,13 +38,14 @@ main() {
 	}
 	printf("built.\n");
 
-	bt_dump(root); return 0;
+	//bt_dump(root); return 0;
 	for(i = 1; i < n; i++) {
 		struct bt_entry *e = bt_lookup(root, i); /* read-back after the whole insertion */
 		if(e && e->value != i+1) {
 			printf("at k=[%d]: %d\n", i, e->value);
 		}
 	}
+	printf("re-read.\n");
 	/*
 	bt_save(root, "large.bin");
 	printf("saved.\n");
@@ -65,7 +64,7 @@ main() {
 	bt_insert(root, 773);
 	*/
 
-
+#endif
 	return EXIT_SUCCESS;
 }
 
