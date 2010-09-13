@@ -4,10 +4,14 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#ifndef WIN32
 #include <arpa/inet.h>
 #include <unistd.h>
+#endif
 
 #include "bt.h"
+
+#define DEBUG 0
 
 struct bt_node *
 bt_node_new(int width) {
@@ -22,13 +26,17 @@ bt_node_new(int width) {
 }
 
 
-struct bt_node *
+
+static struct bt_node *
 bt_split(struct bt_node *b, int *key, int *value) {
 
-	int pivot = (b->width) / 2;
-	// printf("pivot = %d (key=%d, value=%d)\n", pivot, b->entries[pivot].key, b->entries[pivot].value);
-
-	struct bt_node *right = bt_node_new(b->width);
+	struct bt_node *right;
+	int pivot = (b->width) / 2 - 1;
+#if DEBUG
+	printf("pivot: (key=%d)\n", b->entries[pivot].key);
+#endif
+	
+	right = bt_node_new(b->width);
 	*key = b->entries[pivot].key;
 	*value = b->entries[pivot].value;
 
@@ -43,7 +51,9 @@ bt_split(struct bt_node *b, int *key, int *value) {
 	memset(b->entries+pivot+1, 0, (b->width - pivot - 1) * sizeof(struct bt_entry));
 	memset(b->children+pivot+1, 0, (b->width - pivot - 1) * sizeof(struct bt_node));
 
-	// printf("n=%d in :", right->n); bt_dump(right);
+#if DEBUG
+	printf("split: right="); bt_dump(right);
+#endif
 	return right;
 }
 
@@ -65,12 +75,140 @@ bt_lookup(struct bt_node *b, int k) {
 	return NULL;
 }
 
-static struct bt_node *
-bt_root(struct bt_node *b) {
-	return b->parent ? bt_root(b->parent) : b;
+void
+bt_split_child(struct bt_node *x, int i, struct bt_node *y) {
+	struct bt_node *z = bt_node_new(x->width);
+	int t = (x->width + 1) / 2;
+	int j;
+	z->n = t-1;
+
+#if DEBUG
+	printf("\n\nSPLIT\nt=%d, i=%d\n", t, i);
+	printf("\nx(n=%d) entries: [", x->n);
+	for(j = 0; j < x->n; ++j) {
+		printf("%d,", x->entries[j].key);
+	}
+	printf("\b]\n");
+#endif
+
+#if DEBUG
+	printf("\ny(n=%d) entries: [", y->n);
+	for(j = 0; j < y->n; ++j) {
+		printf("%d,", y->entries[j].key);
+	}
+	printf("\b]\n");
+#endif
+
+	for(j = 0; j < t-1; ++j) {
+#if DEBUG
+		printf("moving entry y.%d into z.%d\n", j+t, j);
+#endif
+		z->entries[j].key = y->entries[j+t].key;
+		y->entries[j+t].key = 0;
+	}
+#if DEBUG
+	printf("\nz(n=%d) entries: [", z->n);
+	for(j = 0; j < z->n; ++j) {
+		printf("%d,", z->entries[j].key);
+	}
+	printf("\b]\n");
+#endif
+
+	if(y->children[0] != NULL) { /* not leaf */
+#if DEBUG
+		printf("NOT LEAF\n");
+#endif
+		for(j = 0; j < t; ++j) {
+			z->children[j] = y->children[j+t];
+			y->children[j+t] = NULL;
+		}
+	} else {
+#if DEBUG
+		printf("LEAF\n");
+#endif
+	}
+
+	y->n = t-1;
+	for(j = x->n; j > i; --j) {
+		x->children[j] = x->children[j-1];
+	}
+#if DEBUG
+	printf("x->children[%d] = z\n", i);
+#endif
+	x->children[i] = z;
+
+	for(j = x->n; j > i; --j) {
+		x->entries[j] = x->entries[j-1];
+	}
+	x->entries[i-1] = y->entries[t-1];
+	x->n++;
+
+
+#if DEBUG
+	printf("\nx(n=%d) entries: [", x->n);
+	for(j = 0; j < x->n; ++j) {
+		printf("%d,", x->entries[j].key);
+	}
+	printf("\b]\n");
+	printf("x="); bt_dump(x);
+	printf("y="); bt_dump(y);
+	printf("z="); bt_dump(z);
+	printf("OK\n");
+#endif
 }
 
+void
+bt_insert_nonfull(struct bt_node *x, int k) {
 
+	int i = x->n;
+	if(x->children[0] == NULL) { // leaf
+		printf("i=%d\n", i);
+		while(i > 0 && k < x->entries[i-1].key) {
+			printf("moving entry %d into entry %d\n", i-1, i);
+			x->entries[i] = x->entries[i-1];
+			i--;
+		}
+		printf("moving key %d into entry %d\n", k, i);
+		x->entries[i].key = k;
+		x->n++;
+	} else {
+		while(i >= 0 && k < x->entries[i].key) {
+			i--;
+		}
+		//i++;
+		printf("plop? i=%d. inserting %d\n", i, k);
+		printf("plop. i=%d; x->children[%d]->n=%d\n", i, i, x->children[i]->n);
+
+		if(x->children[i]->n == x->width) {
+			bt_split_child(x, i+1, x->children[i]);
+			if(k > x->entries[i].key) {
+				i++;
+			}
+		}
+		printf("inserting %d, going into child %d\n", k, i);
+		bt_insert_nonfull(x->children[i], k);
+	}
+}
+
+struct bt_node *
+bt_insert_2(struct bt_node *r, int k) {
+	if(r->n == r->width) {
+		struct bt_node *s = bt_node_new(r->width);
+		s->children[0] = r;
+		bt_split_child(s, 1, r);
+#if DEBUG
+		printf("now insert k=%d into s\n", k);
+#endif
+		bt_insert_nonfull(s, k);
+		return s;
+	} else {
+		bt_insert_nonfull(r, k);
+		return r;
+	}
+}
+		
+
+#if 0
 struct bt_node *
 bt_insert(struct bt_node *b, int k, int v, struct bt_node *right) {
 
@@ -143,6 +281,8 @@ bt_insert(struct bt_node *b, int k, int v, struct bt_node *right) {
 	return bt_root(b);
 }
 
+#endif
+#if 0
 static void
 bt_write_block(int fd, struct bt_node *b, int delta, long id, long *maxid) {
 
@@ -225,6 +365,7 @@ bt_save(struct bt_node *b, const char *filename) {
 
 	close(fd);
 	chmod(filename, 0660);
+	return 0;
 }
 
 struct bt_node *
@@ -289,6 +430,7 @@ bt_load(const char *filename) {
 
 	return nodes;
 }
+#endif
 
 struct bt_node *
 bt_delete(struct bt_node *b, int k) {
@@ -355,6 +497,7 @@ bt_delete(struct bt_node *b, int k) {
 	return NULL;
 }
 
+
 void
 bt_dump_(struct bt_node *b, int indent) {
 
@@ -375,7 +518,7 @@ bt_dump_(struct bt_node *b, int indent) {
 
 		if(b->entries[i].key) {
 			//printf("%2d", b->entries[i].key);
-			printf("%c", b->entries[i].key);
+			printf("%d", b->entries[i].key);
 		}
 	}
 	printf("]\n");
@@ -396,7 +539,7 @@ bt_dump(struct bt_node *b) {
 
 	bt_dump_(b, 0);
 }
-
+#if 0
 void
 tree_dot(struct bt_node *b) {
 
@@ -428,3 +571,4 @@ tree_dot(struct bt_node *b) {
 	}
 }
 
+#endif

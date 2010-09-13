@@ -13,7 +13,7 @@ struct bt_node {
 	int width;
 	int n;
 
-	struct bt_node *parent;
+	int leaf;
 
 	struct bt_entry *entries;
 	struct bt_node **children;
@@ -24,6 +24,12 @@ bt_node_new(int width);
 
 struct bt_node *
 bt_insert(struct bt_node *b, int k, int v, struct bt_node *right);
+
+struct bt_node *
+bt_insert_(struct bt_node *b, int k, int v, struct bt_node *left, struct bt_node *right);
+
+struct bt_node *
+bt_insert_2(struct bt_node *r, int k);
 
 struct bt_entry *
 bt_lookup(struct bt_node *b, int k);
