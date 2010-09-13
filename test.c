@@ -9,14 +9,15 @@ main() {
 	int i, n;
 
 	
-	root = bt_node_new(5);
 	n = 20;
+	
+	root = bt_node_new(5);
 	for(i = n; i >= 1; --i) {
 		root = bt_insert_2(root, i);
 		bt_dump(root);
 	}
 	printf("----------------\n");
-
+	
 	root = bt_node_new(5);
 	for(i = 1; i <= n; ++i) {
 		root = bt_insert_2(root, i);

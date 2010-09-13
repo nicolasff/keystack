@@ -13,12 +13,15 @@
 
 #define DEBUG 0
 
+// http://code.google.com/p/microsea/source/browse/trunk/library/klib/btree.c
+
 struct bt_node *
 bt_node_new(int width) {
 
 	struct bt_node *b = calloc(sizeof(struct bt_node), 1);
 	b->width = width;
 
+	b->leaf = 1;
 	b->entries = calloc(sizeof(struct bt_entry), width);
 	b->children = calloc(sizeof(struct bt_node), width+1);
 
@@ -26,36 +29,6 @@ bt_node_new(int width) {
 }
 
 
-
-static struct bt_node *
-bt_split(struct bt_node *b, int *key, int *value) {
-
-	struct bt_node *right;
-	int pivot = (b->width) / 2 - 1;
-#if DEBUG
-	printf("pivot: (key=%d)\n", b->entries[pivot].key);
-#endif
-	
-	right = bt_node_new(b->width);
-	*key = b->entries[pivot].key;
-	*value = b->entries[pivot].value;
-
-	/* copy right part into a new node. */
-	right->n = b->width - pivot - 1;
-	memcpy(right->entries, b->entries + pivot + 1, right->n * sizeof(struct bt_entry));
-	memcpy(right->children, b->children + pivot + 1, right->n * sizeof(struct bt_node));
-
-	/* truncate current node */
-	b->n = pivot;
-	b->entries[b->n].key = 0;
-	memset(b->entries+pivot+1, 0, (b->width - pivot - 1) * sizeof(struct bt_entry));
-	memset(b->children+pivot+1, 0, (b->width - pivot - 1) * sizeof(struct bt_node));
-
-#if DEBUG
-	printf("split: right="); bt_dump(right);
-#endif
-	return right;
-}
 
 struct bt_entry *
 bt_lookup(struct bt_node *b, int k) {
@@ -82,110 +55,55 @@ bt_split_child(struct bt_node *x, int i, struct bt_node *y) {
 	int j;
 	z->n = t-1;
 
-#if DEBUG
-	printf("\n\nSPLIT\nt=%d, i=%d\n", t, i);
-	printf("\nx(n=%d) entries: [", x->n);
-	for(j = 0; j < x->n; ++j) {
-		printf("%d,", x->entries[j].key);
-	}
-	printf("\b]\n");
-#endif
-
-#if DEBUG
-	printf("\ny(n=%d) entries: [", y->n);
-	for(j = 0; j < y->n; ++j) {
-		printf("%d,", y->entries[j].key);
-	}
-	printf("\b]\n");
-#endif
-
-	for(j = 0; j < t-1; ++j) {
-#if DEBUG
-		printf("moving entry y.%d into z.%d\n", j+t, j);
-#endif
+	for(j = 0; j < t-1; j++) {
 		z->entries[j].key = y->entries[j+t].key;
 		y->entries[j+t].key = 0;
-	}
-#if DEBUG
-	printf("\nz(n=%d) entries: [", z->n);
-	for(j = 0; j < z->n; ++j) {
-		printf("%d,", z->entries[j].key);
-	}
-	printf("\b]\n");
-#endif
-
-	if(y->children[0] != NULL) { /* not leaf */
-#if DEBUG
-		printf("NOT LEAF\n");
-#endif
-		for(j = 0; j < t; ++j) {
-			z->children[j] = y->children[j+t];
-			y->children[j+t] = NULL;
+		if(!y->leaf) {
+			z->children[j] = y->children[j + t];
 		}
-	} else {
-#if DEBUG
-		printf("LEAF\n");
-#endif
+	}
+
+	if(!y->leaf) { /* not leaf */
+		z->children[j] = y->children[j + t];
 	}
 
 	y->n = t-1;
-	for(j = x->n; j > i; --j) {
+	for(j = x->n + 1; j > i + 1; j--) {
 		x->children[j] = x->children[j-1];
 	}
-#if DEBUG
-	printf("x->children[%d] = z\n", i);
-#endif
-	x->children[i] = z;
+	x->children[i+1] = z;
 
-	for(j = x->n; j > i; --j) {
-		x->entries[j] = x->entries[j-1];
+	for(j = x->n; j > i; j--) {
+		x->entries[j].key = x->entries[j-1].key;
 	}
-	x->entries[i-1] = y->entries[t-1];
+	x->entries[i].key = y->entries[t-1].key;
 	x->n++;
-
-
-#if DEBUG
-	printf("\nx(n=%d) entries: [", x->n);
-	for(j = 0; j < x->n; ++j) {
-		printf("%d,", x->entries[j].key);
-	}
-	printf("\b]\n");
-	printf("x="); bt_dump(x);
-	printf("y="); bt_dump(y);
-	printf("z="); bt_dump(z);
-	printf("OK\n");
-#endif
 }
 
 void
 bt_insert_nonfull(struct bt_node *x, int k) {
 
-	int i = x->n;
-	if(x->children[0] == NULL) { // leaf
-		printf("i=%d\n", i);
-		while(i > 0 && k < x->entries[i-1].key) {
-			printf("moving entry %d into entry %d\n", i-1, i);
-			x->entries[i] = x->entries[i-1];
+	int i = x->n - 1;
+
+	if(x->leaf) { // leaf
+		while(i >= 0 && k < x->entries[i].key) {
+			x->entries[i+1] = x->entries[i];
 			i--;
 		}
-		printf("moving key %d into entry %d\n", k, i);
-		x->entries[i].key = k;
+		x->entries[i+1].key = k;
 		x->n++;
 	} else {
 		while(i >= 0 && k < x->entries[i].key) {
 			i--;
 		}
-		//i++;
-		printf("plop? i=%d. inserting %d\n", i, k);
-		printf("plop. i=%d; x->children[%d]->n=%d\n", i, i, x->children[i]->n);
+		i++;
 
 		if(x->children[i]->n == x->width) {
-			bt_split_child(x, i+1, x->children[i]);
+			bt_split_child(x, i, x->children[i]);
 			if(k > x->entries[i].key) {
 				i++;
 			}
 		}
-		printf("inserting %d, going into child %d\n", k, i);
 		bt_insert_nonfull(x->children[i], k);
 	}
 }
@@ -195,10 +113,8 @@ bt_insert_2(struct bt_node *r, int k) {
 	if(r->n == r->width) {
 		struct bt_node *s = bt_node_new(r->width);
 		s->children[0] = r;
-		bt_split_child(s, 1, r);
-#if DEBUG
-		printf("now insert k=%d into s\n", k);
-#endif
+		s->leaf = 0;
+		bt_split_child(s, 0, r);
 		bt_insert_nonfull(s, k);
 		return s;
 	} else {
@@ -208,80 +124,6 @@ bt_insert_2(struct bt_node *r, int k) {
 }
 		
 
-#if 0
-struct bt_node *
-bt_insert(struct bt_node *b, int k, int v, struct bt_node *right) {
-
-	int i, j;
-
-	for(i = 0; i < b->n; ++i) {
-		if(k == b->entries[i].key) { /* update in-place. */
-			b->entries[i].value = v;
-			return bt_root(b);
-		}
-		if(k < b->entries[i].key) { /* insert right before */
-
-			/* either we have to go lower or we can just insert here */
-			if(b->children[i] && !right) { /* there is more! insert under. */
-				return bt_insert(b->children[i], k, v, right);
-			}
-
-			/* simple case: shift right */
-			for(j = b->n; j > i; --j) {
-				b->entries[j] = b->entries[j-1];
-			}
-
-			// insert at position i
-			b->entries[i].key = k;
-			b->entries[i].value = v;
-			if(right) {
-				// shift children to the right.
-				for(j = b->n+1; j > i+1; --j) {
-					b->children[j] = b->children[j-1];
-				}
-				b->children[i+1] = right;
-				right->parent = b;
-			}
-			b->n++;
-			return bt_root(b);
-		}
-	}
-
-	// insert in this node.
-	if(b->children[b->n] && !right) { /* there is more */
-		// follow link to child
-		return bt_insert(b->children[b->n], k, v, right);
-	} else {
-		if(b->n == b->width) {
-			// full. split!
-			int pivot_key, pivot_value;
-			struct bt_node *added = bt_split(b, &pivot_key, &pivot_value);
-
-			if(b->parent == NULL) {
-				struct bt_node *root = bt_node_new(b->width);
-				root->children[0] = b;
-				b->parent = root;
-				
-			} 
-			bt_insert(b->parent, pivot_key, pivot_value, added);
-			return bt_insert(added, k, v, right);
-			
-		} else {
-			// no problem, just append.
-			b->entries[b->n].key = k;
-			b->entries[b->n].value = v;
-			if(right) {
-				b->children[b->n+1] = right;
-				right->parent = b;
-			}
-			b->n++;
-			
-		}
-	}
-	return bt_root(b);
-}
-
-#endif
 #if 0
 static void
 bt_write_block(int fd, struct bt_node *b, int delta, long id, long *maxid) {
@@ -432,72 +274,6 @@ bt_load(const char *filename) {
 }
 #endif
 
-struct bt_node *
-bt_delete(struct bt_node *b, int k) {
-
-	(void)b;
-	(void)k;
-#if 0
-	printf("Deleting %c in %p\n", k, b);
-
-	struct bt_entry *e = NULL;
-
-	struct bt_node *b_cur = b;
-	
-	/* look for the bt_node, as well as the bt_entry */
-	int i;
-	while(1) {
-		int go_down = 0;
-		for(i = 0; i <= b_cur->n; ++i) {
-			if(i != b_cur->n && k == b_cur->entries[i].key) { /* found */
-				e = b_cur->entries + i;
-				break;
-			}
-			if((i == b_cur->n || k < b_cur->entries[i].key) && b_cur->children[i]) { /* there is more */
-				b_cur = b_cur->children[i];
-				go_down = 1; /* go down a level */
-				break;
-			}
-		}
-		if(!go_down) {
-			break;
-		}
-	}
-
-	if(!e) { /* not found */
-		return b;
-	}
-
-	printf("found in bt_node=%p, bt_entry=%p: key=%c, i = %d\n", b_cur, e, e->key, i);
-
-	/* We need to consider several cases. */
-	/* if the node is a leaf, this is easy, let's just move its right neighbours a bit to the left */
-
-	if(b_cur->children[i] == NULL) { /* leaf, easiest case. */
-		int j;
-		for(j = i; j != b_cur->n - 1; ++j) {
-			b_cur->children[j] = b_cur->children[j+1];
-			b_cur->entries[j] = b_cur->entries[j+1];
-		}
-		b_cur->n--;
-
-		/* check that the size of the node is still acceptable */
-		if(b_cur->n >= b_cur->width/2) {
-			return b; /* still good. */
-		}
-
-		/* we must readjust the tree. */
-		printf("fffuuuu-\n");
-	} else {
-		printf("not a leaf.\n");
-
-	}
-
-#endif
-	return NULL;
-}
-
-
 void
 bt_dump_(struct bt_node *b, int indent) {
 
@@ -523,7 +299,7 @@ bt_dump_(struct bt_node *b, int indent) {
 	}
 	printf("]\n");
 
-	for(i = 0; i < b->width+1; ++i) {
+	for(i = 0; i < b->n+1; ++i) {
 		if(b->children[i]) {
 			bt_dump_(b->children[i], indent+1);
 		}
