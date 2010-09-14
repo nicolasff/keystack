@@ -26,7 +26,7 @@ main() {
 	printf("----------------\n");
 	*/
 
-	n = 2000*1000;
+	n = 100*1000;
 #if 1
 	for(i = n; i >= 4; i--) {
 		struct bt_entry *e;
@@ -36,7 +36,11 @@ main() {
 			printf("at k=[%d]: %d\n", i, e->value);
 		}
 	}
-	printf("built.\n");
+	printf("saving.\n");
+	bt_save(root, "large.bin");
+	printf("saved.\n");
+	root = bt_load("large.bin");
+	printf("loaded.\n");
 
 	//bt_dump(root); return 0;
 	for(i = 1; i < n; i++) {
@@ -45,13 +49,7 @@ main() {
 			printf("at k=[%d]: %d\n", i, e->value);
 		}
 	}
-	printf("re-read.\n");
-	/*
-	bt_save(root, "large.bin");
-	printf("saved.\n");
-	root = bt_load("large.bin");
-	printf("loaded.\n");
-	*/
+	printf("checked.\n");
 
 
 	/*

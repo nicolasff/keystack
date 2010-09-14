@@ -11,10 +11,6 @@
 
 #include "bt.h"
 
-#define DEBUG 0
-
-// http://code.google.com/p/microsea/source/browse/trunk/library/klib/btree.c
-
 struct bt_node *
 bt_node_new(int width) {
 
@@ -35,13 +31,11 @@ bt_lookup(struct bt_node *b, int k) {
 	
 	int i;
 
-//	printf("look for %d in %p\n", k, b);
 	for(i = 0; i <= b->n; ++i) {
 		if(i != b->n && k == b->entries[i].key) { /* found */
 			return b->entries + i;
 		}
 		if((i == b->n || k < b->entries[i].key) && b->children[i]) { /* there is more */
-			// printf("lookup under.\n");
 			return bt_lookup(b->children[i], k);
 		}
 	}
@@ -125,12 +119,11 @@ bt_insert(struct bt_node *r, int k, int v) {
 }
 		
 
-#if 0
 static void
 bt_write_block(int fd, struct bt_node *b, int delta, long id, long *maxid) {
 
 
-	int i;
+	int i, ret;
 
 	size_t block_size = (1 + 1 + 2 * b->width + b->width + 1) * sizeof(long);
 
@@ -139,11 +132,11 @@ bt_write_block(int fd, struct bt_node *b, int delta, long id, long *maxid) {
 
 	/* write block id */
 	long block_id = htonl(id);
-	write(fd, &block_id, sizeof(long));
+	ret = write(fd, &block_id, sizeof(long));
 
 	/* write block size */
 	long block_sz = htonl(b->n);
-	write(fd, &block_sz, sizeof(long));
+	ret = write(fd, &block_sz, sizeof(long));
 	
 	/* write block entries */
 	long first_child = *maxid, child = *maxid;
@@ -156,8 +149,8 @@ bt_write_block(int fd, struct bt_node *b, int delta, long id, long *maxid) {
 			k = v = htonl(0);
 		}
 
-		write(fd, &k, sizeof(long));
-		write(fd, &v, sizeof(long));
+		ret = write(fd, &k, sizeof(long));
+		ret = write(fd, &v, sizeof(long));
 	}
 
 	/* write block links */
@@ -169,7 +162,7 @@ bt_write_block(int fd, struct bt_node *b, int delta, long id, long *maxid) {
 		} else {
 			c = htonl(0);
 		}
-		write(fd, &c, sizeof(long));
+		ret = write(fd, &c, sizeof(long));
 	}
 
 	if(b->children[0] == NULL) { /* leaf */
@@ -188,23 +181,25 @@ bt_write_block(int fd, struct bt_node *b, int delta, long id, long *maxid) {
 int
 bt_save(struct bt_node *b, const char *filename) {
 
+	int fd, ret;
+	long count = 1, w = b->width;
+	int delta = sizeof(long) * 2;
+
 	unlink(filename);
-	int fd = open(filename, O_WRONLY | O_CREAT);
+	fd = open(filename, O_WRONLY | O_CREAT, 0660);
 	if(!fd) {
 		return -1;
 	}
-	long count = 1, w = b->width;
 
-	int delta = sizeof(long) * 2;
 	bt_write_block(fd, b, delta, 0, &count);
 
 	lseek(fd, 0, SEEK_SET); /* rewind */
 
 	count = htonl(count); /* save number of nodes */
-	write(fd, &count, sizeof(long));
+	ret = write(fd, &count, sizeof(long));
 
 	w = htonl(w); /* save width of nodes. */
-	write(fd, &w, sizeof(long));
+	ret = write(fd, &w, sizeof(long));
 
 	close(fd);
 	chmod(filename, 0660);
@@ -214,7 +209,7 @@ bt_save(struct bt_node *b, const char *filename) {
 struct bt_node *
 bt_load(const char *filename) {
 
-	int fd, i, j;
+	int fd, i, j, ret;
 	struct bt_node *nodes, *b;
 	long count, w;
 	
@@ -224,10 +219,10 @@ bt_load(const char *filename) {
 		return NULL;
 	}
 
-	read(fd, &count, sizeof(long));
+	ret = read(fd, &count, sizeof(long));
 	count = ntohl(count);
 
-	read(fd, &w, sizeof(long));
+	ret = read(fd, &w, sizeof(long));
 	w = ntohl(w);
 
 	printf("loading %ld nodes\n", count);
@@ -237,10 +232,10 @@ bt_load(const char *filename) {
 		b = nodes + i;
 
 		long id, n, k, v, c;
-		read(fd, &id, sizeof(long));
+		ret = read(fd, &id, sizeof(long));
 		id = ntohl(id);
 
-		read(fd, &n, sizeof(long));
+		ret = read(fd, &n, sizeof(long));
 		n = ntohl(n);
 		b->n = n;
 		b->width = w;
@@ -248,8 +243,8 @@ bt_load(const char *filename) {
 		b->entries = calloc((size_t)w, sizeof(struct bt_entry));
 		/* read k, v */
 		for(j = 0; j < w; ++j) {
-			read(fd, &k, sizeof(long));
-			read(fd, &v, sizeof(long));
+			ret = read(fd, &k, sizeof(long));
+			ret = read(fd, &v, sizeof(long));
 
 			if(j >= n) {
 				continue;
@@ -261,7 +256,7 @@ bt_load(const char *filename) {
 		nodes[i].children = calloc((size_t)(w+1), sizeof(struct bt_node*));
 		/* read children */
 		for(j = 0; j <= w; ++j) {
-			read(fd, &c, sizeof(long));
+			ret = read(fd, &c, sizeof(long));
 
 			c = ntohl(c);
 			if(c != 0) {
@@ -273,7 +268,6 @@ bt_load(const char *filename) {
 
 	return nodes;
 }
-#endif
 
 void
 bt_dump_(struct bt_node *b, int indent) {
@@ -316,36 +310,4 @@ bt_dump(struct bt_node *b) {
 
 	bt_dump_(b, 0);
 }
-#if 0
-void
-tree_dot(struct bt_node *b) {
 
-	unsigned int self = (unsigned int)(long)(void*)b;
-
-	if(b->parent == NULL) {
-		printf("digraph G {\n");
-	}
-
-	printf("node_%x [label=\"", self);
-	int i;
-	for(i = 0; i < b->n; ++i) {
-		printf("%d", b->entries[i].key);
-		if(i != b->n - 1) {
-			printf(", ");
-		} 
-	}
-	printf("\"];\n");
-
-	for(i = 0; i <= b->n; ++i) {
-		if(b->children[i]) {
-			printf("node_%x -> node_%x;\n", self, (unsigned int)(long)(b->children[i]));
-			tree_dot(b->children[i]);
-		}
-	}
-
-	if(b->parent == NULL) {
-		printf("}\n");
-	}
-}
-
-#endif
