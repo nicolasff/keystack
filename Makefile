@@ -1,6 +1,6 @@
 OUT=test
 OBJS=test.o bt.o
-CFLAGS=-O0 -ggdb -Wall -Wextra -pthread # -Werror -pedantic
+CFLAGS=-O3 -ggdb -Wall -Wextra -pthread # -Werror -pedantic
 LDFLAGS=-lrt -pthread
 
 all: $(OUT) Makefile

@@ -184,7 +184,7 @@ bt_write_block(void *p, struct bt_node *b, long id, long *maxid) {
 	}
 
 	for(i = 0; i <= b->width; i++) { /* write each child with a new id */
-		if(i < b-> n && b->children[i]) {
+		if(i <= b-> n && b->children[i]) {
 			p = bt_write_block(p, b->children[i], first_child, maxid);
 			first_child++;
 		}
@@ -218,21 +218,20 @@ bt_node_size(struct bt_node *b) {
 int
 bt_save(struct bt_node *b, const char *filename) {
 
-	int fd;
+	int fd, ret;
 	long count, maxid = 1, w = b->width;
 	long filesize, pagesize;
 	int delta = sizeof(long) * 2;
 	void *ptr;
 
 	unlink(filename);
-	fd = open(filename, O_RDWR | O_CREAT | O_TRUNC, 0660);
+	fd = open(filename, O_RDWR | O_CREAT, 0660);
 	if(!fd) {
 		return -1;
 	}
 
 	/* count nodes */
 	count = bt_count(b);
-	printf("count=%ld, node size = %d\n", count, bt_node_size(b));
 
 	/* compute file size */
 	filesize = bt_node_size(b) * count;
@@ -242,7 +241,7 @@ bt_save(struct bt_node *b, const char *filename) {
 	}
 	/* stretch file */
 	lseek(fd, filesize-1, SEEK_SET);
-	write(fd, "", 1);
+	ret = write(fd, "", 1);
 
 	/* mmap, write, munmap */
 	ptr = mmap(NULL, filesize, PROT_WRITE, MAP_SHARED | MAP_POPULATE, fd, 0);
@@ -266,17 +265,30 @@ bt_load(const char *filename) {
 	int fd, i, j, ret;
 	struct bt_node *nodes, *b;
 	long count, w;
+	struct stat buf;
+	long filesize = 0;
+	void *ptr, *p;
+
+	ret = stat(filename, &buf);
+	if(ret != 0) {
+		return NULL;
+	}
+	filesize = buf.st_size;
 	
 	fd = open(filename, O_RDONLY);
-
 	if(!fd) {
 		return NULL;
 	}
 
-	ret = read(fd, &count, sizeof(long));
+	p = ptr = mmap(NULL, filesize, PROT_READ, MAP_SHARED, fd, 0);
+
+	memcpy(&count, ptr, sizeof(long));
+	ptr += sizeof(long);
 	count = ntohl(count);
 
-	ret = read(fd, &w, sizeof(long));
+
+	memcpy(&w, ptr, sizeof(long));
+	ptr += sizeof(long);
 	w = ntohl(w);
 
 	printf("loading %ld nodes\n", count);
@@ -286,10 +298,12 @@ bt_load(const char *filename) {
 		b = nodes + i;
 
 		long id, n, k, v, c;
-		ret = read(fd, &id, sizeof(long));
+		memcpy(&id, ptr, sizeof(long));
+		ptr += sizeof(long);
 		id = ntohl(id);
 
-		ret = read(fd, &n, sizeof(long));
+		memcpy(&n, ptr, sizeof(long));
+		ptr += sizeof(long);
 		n = ntohl(n);
 		b->n = n;
 		b->width = w;
@@ -297,8 +311,10 @@ bt_load(const char *filename) {
 		b->entries = calloc((size_t)w, sizeof(struct bt_entry));
 		/* read k, v */
 		for(j = 0; j < w; ++j) {
-			ret = read(fd, &k, sizeof(long));
-			ret = read(fd, &v, sizeof(long));
+			memcpy(&k, ptr, sizeof(long));
+			ptr += sizeof(long);
+			memcpy(&v, ptr, sizeof(long));
+			ptr += sizeof(long);
 
 			if(j >= n) {
 				continue;
@@ -310,7 +326,8 @@ bt_load(const char *filename) {
 		nodes[i].children = calloc((size_t)(w+1), sizeof(struct bt_node*));
 		/* read children */
 		for(j = 0; j <= w; ++j) {
-			ret = read(fd, &c, sizeof(long));
+			memcpy(&c, ptr, sizeof(long));
+			ptr += sizeof(long);
 
 			c = ntohl(c);
 			if(c != 0) {
@@ -319,7 +336,10 @@ bt_load(const char *filename) {
 		}
 	}
 
+	munmap(p, filesize);
+	close(fd);
 
+	bt_dump(nodes);
 	return nodes;
 }
 

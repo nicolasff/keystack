@@ -37,16 +37,18 @@ main() {
 		}
 	}
 	printf("saving index of %d elements.\n", n);
-	bt_save(root, "large.bin");
+	bt_save(root, "/tmp/large.bin");
 	bt_free(root);
 	printf("saved.\n");
-	root = bt_load("large.bin");
+	root = bt_load("/tmp/large.bin");
 	printf("loaded.\n");
 
 	//bt_dump(root); return 0;
 	for(i = 1; i < n; i++) {
 		struct bt_entry *e = bt_lookup(root, i); /* read-back after the whole insertion */
-		if(e && e->value != i+1) {
+		if(!e) {
+		//	printf("e=nil.\n");
+		} else if(e->value != i+1) {
 			printf("at k=[%d]: %d\n", i, e->value);
 		}
 	}
