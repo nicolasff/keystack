@@ -26,9 +26,9 @@ main() {
 	printf("----------------\n");
 	*/
 
-	n = 100*1000;
+	n = 1000*1000;
 #if 1
-	for(i = n; i >= 4; i--) {
+	for(i = n; i >= 1; i--) {
 		struct bt_entry *e;
 		root = bt_insert(root, i, i+1);
 		e = bt_lookup(root, i); /* immediate read-back */
@@ -36,8 +36,9 @@ main() {
 			printf("at k=[%d]: %d\n", i, e->value);
 		}
 	}
-	printf("saving.\n");
+	printf("saving index of %d elements.\n", n);
 	bt_save(root, "large.bin");
+	bt_free(root);
 	printf("saved.\n");
 	root = bt_load("large.bin");
 	printf("loaded.\n");

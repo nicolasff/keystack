@@ -22,6 +22,9 @@ struct bt_node {
 struct bt_node *
 bt_node_new(int width);
 
+void
+bt_free(struct bt_node *);
+
 struct bt_node *
 bt_insert(struct bt_node *r, int k, int v);
 

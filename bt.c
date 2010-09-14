@@ -4,10 +4,9 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
-#ifndef WIN32
+#include <sys/mman.h>
 #include <arpa/inet.h>
 #include <unistd.h>
-#endif
 
 #include "bt.h"
 
@@ -22,6 +21,20 @@ bt_node_new(int width) {
 	b->children = calloc(sizeof(struct bt_node), width+1);
 
 	return b;
+}
+
+void
+bt_free(struct bt_node *b) {
+
+	int i;
+	for(i = 0; i <= b->n; i++) {
+		if(b->children[i]) {
+			bt_free(b->children[i]);
+		}
+	}
+	free(b->children);
+	free(b->entries);
+	free(b);
 }
 
 
@@ -119,24 +132,21 @@ bt_insert(struct bt_node *r, int k, int v) {
 }
 		
 
-static void
-bt_write_block(int fd, struct bt_node *b, int delta, long id, long *maxid) {
+static void*
+bt_write_block(void *p, struct bt_node *b, long id, long *maxid) {
 
 
-	int i, ret;
-
-	size_t block_size = (1 + 1 + 2 * b->width + b->width + 1) * sizeof(long);
-
-	/* write in the proper position */
-	lseek(fd, delta + block_size * id, SEEK_SET);
+	int i;
 
 	/* write block id */
 	long block_id = htonl(id);
-	ret = write(fd, &block_id, sizeof(long));
+	memcpy(p, &block_id, sizeof(long));
+	p += sizeof(long);
 
 	/* write block size */
 	long block_sz = htonl(b->n);
-	ret = write(fd, &block_sz, sizeof(long));
+	memcpy(p, &block_sz, sizeof(long));
+	p += sizeof(long);
 	
 	/* write block entries */
 	long first_child = *maxid, child = *maxid;
@@ -149,58 +159,102 @@ bt_write_block(int fd, struct bt_node *b, int delta, long id, long *maxid) {
 			k = v = htonl(0);
 		}
 
-		ret = write(fd, &k, sizeof(long));
-		ret = write(fd, &v, sizeof(long));
+		memcpy(p, &k, sizeof(long));
+		p += sizeof(long);
+		memcpy(p, &v, sizeof(long));
+		p += sizeof(long);
 	}
 
 	/* write block links */
 	for(i = 0; i <= b->width; i++) {
 		long c;
-		if(b->children[i]) {
+		if(i < b-> n && b->children[i]) {
 			c = htonl(child++);
 			(*maxid)++;
 		} else {
 			c = htonl(0);
 		}
-		ret = write(fd, &c, sizeof(long));
+		memcpy(p, &c, sizeof(long));
+		p += sizeof(long);
 	}
 
-	if(b->children[0] == NULL) { /* leaf */
+	if(b->children[0] == NULL) { /* no children */
 		*maxid = id + 1;
-		return;
+		return p;
 	}
 
 	for(i = 0; i <= b->width; i++) { /* write each child with a new id */
-		if(b->children[i]) {
-			bt_write_block(fd, b->children[i], delta, first_child, maxid);
+		if(i < b-> n && b->children[i]) {
+			p = bt_write_block(p, b->children[i], first_child, maxid);
 			first_child++;
 		}
 	}
+	return p;
+}
+
+/**
+ * Counts the number of nodes
+ */
+static int
+bt_count(struct bt_node *b) {
+
+	int count = 1, i;
+	for(i = 0; i <= b->n; i++) {
+		if(b->children[i]) {
+			count += bt_count(b->children[i]);
+		}
+	}
+	return count;
+}
+
+static int
+bt_node_size(struct bt_node *b) {
+	return sizeof(long) 			/* id */
+		+ sizeof(long)			/* n */
+		+ 2 * b->width * sizeof(long)	/* keys, values */
+		+ (1+b->width) * sizeof(long);	/* children */
 }
 
 int
 bt_save(struct bt_node *b, const char *filename) {
 
-	int fd, ret;
-	long count = 1, w = b->width;
+	int fd;
+	long count, maxid = 1, w = b->width;
+	long filesize, pagesize;
 	int delta = sizeof(long) * 2;
+	void *ptr;
 
 	unlink(filename);
-	fd = open(filename, O_WRONLY | O_CREAT, 0660);
+	fd = open(filename, O_RDWR | O_CREAT | O_TRUNC, 0660);
 	if(!fd) {
 		return -1;
 	}
 
-	bt_write_block(fd, b, delta, 0, &count);
+	/* count nodes */
+	count = bt_count(b);
+	printf("count=%ld, node size = %d\n", count, bt_node_size(b));
 
-	lseek(fd, 0, SEEK_SET); /* rewind */
+	/* compute file size */
+	filesize = bt_node_size(b) * count;
+	pagesize = sysconf(_SC_PAGE_SIZE);
+	if(filesize % pagesize) {
+		filesize = (filesize + pagesize) & (~(pagesize-1));
+	}
+	/* stretch file */
+	lseek(fd, filesize-1, SEEK_SET);
+	write(fd, "", 1);
+
+	/* mmap, write, munmap */
+	ptr = mmap(NULL, filesize, PROT_WRITE, MAP_SHARED | MAP_POPULATE, fd, 0);
+	bt_write_block(ptr + delta, b, 0, &maxid);
 
 	count = htonl(count); /* save number of nodes */
-	ret = write(fd, &count, sizeof(long));
+	memcpy(ptr, &count, sizeof(long));
 
 	w = htonl(w); /* save width of nodes. */
-	ret = write(fd, &w, sizeof(long));
+	memcpy(ptr + sizeof(long), &w, sizeof(long));
 
+	munmap(ptr, filesize);
 	close(fd);
 	chmod(filename, 0660);
 	return 0;
