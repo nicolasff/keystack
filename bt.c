@@ -38,7 +38,6 @@ bt_free(struct bt_node *b) {
 }
 
 
-
 struct bt_entry *
 bt_lookup(struct bt_node *b, int k) {
 	
@@ -135,7 +134,6 @@ bt_insert(struct bt_node *r, int k, int v) {
 static void*
 bt_write_block(void *p, struct bt_node *b, long id, long *maxid) {
 
-
 	int i;
 
 	/* write block id */
@@ -168,7 +166,7 @@ bt_write_block(void *p, struct bt_node *b, long id, long *maxid) {
 	/* write block links */
 	for(i = 0; i <= b->width; i++) {
 		long c;
-		if(i < b-> n && b->children[i]) {
+		if(i <= b-> n && b->children[i]) {
 			c = htonl(child++);
 			(*maxid)++;
 		} else {
@@ -179,7 +177,6 @@ bt_write_block(void *p, struct bt_node *b, long id, long *maxid) {
 	}
 
 	if(b->children[0] == NULL) { /* no children */
-		*maxid = id + 1;
 		return p;
 	}
 
@@ -219,7 +216,7 @@ int
 bt_save(struct bt_node *b, const char *filename) {
 
 	int fd, ret;
-	long count, maxid = 1, w = b->width;
+	long count, maxid = 2, w = b->width;
 	long filesize, pagesize;
 	int delta = sizeof(long) * 2;
 	void *ptr;
@@ -232,6 +229,7 @@ bt_save(struct bt_node *b, const char *filename) {
 
 	/* count nodes */
 	count = bt_count(b);
+	printf("saving %ld nodes.\n", count);
 
 	/* compute file size */
 	filesize = bt_node_size(b) * count;
@@ -245,7 +243,7 @@ bt_save(struct bt_node *b, const char *filename) {
 
 	/* mmap, write, munmap */
 	ptr = mmap(NULL, filesize, PROT_WRITE, MAP_SHARED | MAP_POPULATE, fd, 0);
-	bt_write_block(ptr + delta, b, 0, &maxid);
+	bt_write_block(ptr + delta, b, 1, &maxid);
 
 	count = htonl(count); /* save number of nodes */
 	memcpy(ptr, &count, sizeof(long));
@@ -295,12 +293,12 @@ bt_load(const char *filename) {
 	nodes = calloc((size_t)count, sizeof(struct bt_node));
 
 	for(i = 0; i < count; ++i) {
-		b = nodes + i;
 
 		long id, n, k, v, c;
 		memcpy(&id, ptr, sizeof(long));
 		ptr += sizeof(long);
 		id = ntohl(id);
+		b = nodes + (id-1);
 
 		memcpy(&n, ptr, sizeof(long));
 		ptr += sizeof(long);
@@ -323,7 +321,7 @@ bt_load(const char *filename) {
 			b->entries[j].value = ntohl(v);
 		}
 
-		nodes[i].children = calloc((size_t)(w+1), sizeof(struct bt_node*));
+		b->children = calloc((size_t)(w+1), sizeof(struct bt_node*));
 		/* read children */
 		for(j = 0; j <= w; ++j) {
 			memcpy(&c, ptr, sizeof(long));
@@ -331,7 +329,7 @@ bt_load(const char *filename) {
 
 			c = ntohl(c);
 			if(c != 0) {
-				b->children[j] = nodes + c;
+				b->children[j] = &nodes[c-1];
 			}
 		}
 	}
@@ -339,7 +337,6 @@ bt_load(const char *filename) {
 	munmap(p, filesize);
 	close(fd);
 
-	bt_dump(nodes);
 	return nodes;
 }
 
