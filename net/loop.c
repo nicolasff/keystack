@@ -67,6 +67,28 @@ net_start(const char *ip, short port) {
 }
 
 static void
+on_available_data(int fd, short event, void *ptr) {
+
+	/* TODO: make this non-blocking */
+	struct client *c = ptr;
+	char magic;
+
+	printf("on_available_data\n");
+
+	read(fd, &magic, 1);
+	read(fd, &c->cmd, 1);
+
+	/* read key size */
+	read(fd, &c->key_sz, sizeof(uint32_t));
+	c->key_sz = ntohl(c->key_sz);
+
+	/* read key */
+	c->key = calloc(1+c->key_sz, 1);
+	read(fd, c->key, c->key_sz);
+
+}
+
+static void
 on_connect(int fd, short event, void *ptr) {
 	(void)event;
 
@@ -78,14 +100,14 @@ on_connect(int fd, short event, void *ptr) {
 
 	printf("on_connect\n");
 	client_fd = accept(fd, (struct sockaddr*)&addr, &addr_sz);
-#if 0
-	struct connection *cx = cx_new(client_fd, base);
+
+	struct client *c = calloc(sizeof(struct client), 1);
+	c->fd = client_fd;
 
 	/* wait for new data */
-	event_set(cx->ev, cx->fd, EV_READ, on_available_data, cx);
-	event_base_set(base, cx->ev);
-	event_add(cx->ev, NULL);
-#endif
+	event_set(&c->ev, c->fd, EV_READ, on_available_data, c);
+	event_base_set(base, &c->ev);
+	event_add(&c->ev, NULL);
 }
 
 void

@@ -2,12 +2,15 @@
 #define NET_LOOP_H
 
 #include <arpa/inet.h>
+#include <event.h>
 
 struct dict;
 
 struct client {
 
 	int fd;
+	struct event ev;
+
 	char cmd;
 	
 	uint32_t key_sz;
