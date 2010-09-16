@@ -132,22 +132,22 @@ bt_insert(struct bt_node *r, int k, int v) {
 		
 
 static void*
-bt_write_block(void *p, struct bt_node *b, long id, long *maxid) {
+bt_write_block(void *p, struct bt_node *b, uint32_t id, uint32_t *maxid) {
 
 	int i;
 
 	/* write block id */
-	long block_id = htonl(id);
-	memcpy(p, &block_id, sizeof(long));
-	p += sizeof(long);
+	uint32_t block_id = htonl(id);
+	memcpy(p, &block_id, sizeof(uint32_t));
+	p += sizeof(uint32_t);
 
 	/* write block size */
-	long block_sz = htonl(b->n);
-	memcpy(p, &block_sz, sizeof(long));
-	p += sizeof(long);
+	char block_sz = b->n;
+	memcpy(p, &block_sz, 1);
+	p++;
 	
 	/* write block entries */
-	long first_child = *maxid, child = *maxid;
+	uint32_t first_child = *maxid, child = *maxid;
 	for(i = 0; i < b->width; i++) {
 		long k, v;
 		if(i < b->n) {
@@ -157,23 +157,23 @@ bt_write_block(void *p, struct bt_node *b, long id, long *maxid) {
 			k = v = htonl(0);
 		}
 
-		memcpy(p, &k, sizeof(long));
-		p += sizeof(long);
-		memcpy(p, &v, sizeof(long));
-		p += sizeof(long);
+		memcpy(p, &k, sizeof(uint32_t));
+		p += sizeof(uint32_t);
+		memcpy(p, &v, sizeof(uint32_t));
+		p += sizeof(uint32_t);
 	}
 
 	/* write block links */
 	for(i = 0; i <= b->width; i++) {
-		long c;
+		uint32_t c;
 		if(i <= b-> n && b->children[i]) {
 			c = htonl(child++);
 			(*maxid)++;
 		} else {
 			c = htonl(0);
 		}
-		memcpy(p, &c, sizeof(long));
-		p += sizeof(long);
+		memcpy(p, &c, sizeof(uint32_t));
+		p += sizeof(uint32_t);
 	}
 
 	if(b->children[0] == NULL) { /* no children */
@@ -206,19 +206,19 @@ bt_count(struct bt_node *b) {
 
 static int
 bt_node_size(struct bt_node *b) {
-	return sizeof(long) 			/* id */
-		+ sizeof(long)			/* n */
-		+ 2 * b->width * sizeof(long)	/* keys, values */
-		+ (1+b->width) * sizeof(long);	/* children */
+	return sizeof(uint32_t) 			/* id */
+		+ 1				/* n */
+		+ 2 * b->width * sizeof(uint32_t)	/* keys, values */
+		+ (1+b->width) * sizeof(uint32_t);	/* children */
 }
 
 int
 bt_save(struct bt_node *b, const char *filename) {
 
 	int fd, ret;
-	long count, maxid = 2, w = b->width;
+	uint32_t count, maxid = 2, w = b->width;
 	long filesize, pagesize;
-	int delta = sizeof(long) * 2;
+	int delta = sizeof(uint32_t) * 2;
 	void *ptr;
 
 	unlink(filename);
@@ -229,7 +229,6 @@ bt_save(struct bt_node *b, const char *filename) {
 
 	/* count nodes */
 	count = bt_count(b);
-	printf("saving %ld nodes.\n", count);
 
 	/* compute file size */
 	filesize = bt_node_size(b) * count;
@@ -246,10 +245,10 @@ bt_save(struct bt_node *b, const char *filename) {
 	bt_write_block(ptr + delta, b, 1, &maxid);
 
 	count = htonl(count); /* save number of nodes */
-	memcpy(ptr, &count, sizeof(long));
+	memcpy(ptr, &count, sizeof(uint32_t));
 
 	w = htonl(w); /* save width of nodes. */
-	memcpy(ptr + sizeof(long), &w, sizeof(long));
+	memcpy(ptr + sizeof(uint32_t), &w, sizeof(uint32_t));
 
 	munmap(ptr, filesize);
 	close(fd);
@@ -262,10 +261,11 @@ bt_load(const char *filename) {
 
 	int fd, i, j, ret;
 	struct bt_node *nodes, *b;
-	long count, w;
+	uint32_t count;
 	struct stat buf;
 	long filesize = 0;
 	void *ptr, *p;
+	char w;
 
 	ret = stat(filename, &buf);
 	if(ret != 0) {
@@ -280,28 +280,27 @@ bt_load(const char *filename) {
 
 	p = ptr = mmap(NULL, filesize, PROT_READ, MAP_SHARED, fd, 0);
 
-	memcpy(&count, ptr, sizeof(long));
-	ptr += sizeof(long);
+	memcpy(&count, ptr, sizeof(uint32_t));
+	ptr += sizeof(uint32_t);
 	count = ntohl(count);
 
 
-	memcpy(&w, ptr, sizeof(long));
-	ptr += sizeof(long);
-	w = ntohl(w);
+	memcpy(&w, ptr, 1);
+	ptr++;
 
-	printf("loading %ld nodes\n", count);
+	printf("loading %d nodes\n", count);
 	nodes = calloc((size_t)count, sizeof(struct bt_node));
 
 	for(i = 0; i < count; ++i) {
 
-		long id, n, k, v, c;
-		memcpy(&id, ptr, sizeof(long));
-		ptr += sizeof(long);
+		uint32_t id, n, k, v, c;
+		memcpy(&id, ptr, sizeof(uint32_t));
+		ptr += sizeof(uint32_t);
 		id = ntohl(id);
 		b = nodes + (id-1);
 
-		memcpy(&n, ptr, sizeof(long));
-		ptr += sizeof(long);
+		memcpy(&n, ptr, sizeof(uint32_t));
+		ptr += sizeof(uint32_t);
 		n = ntohl(n);
 		b->n = n;
 		b->width = w;
@@ -309,10 +308,10 @@ bt_load(const char *filename) {
 		b->entries = calloc((size_t)w, sizeof(struct bt_entry));
 		/* read k, v */
 		for(j = 0; j < w; ++j) {
-			memcpy(&k, ptr, sizeof(long));
-			ptr += sizeof(long);
-			memcpy(&v, ptr, sizeof(long));
-			ptr += sizeof(long);
+			memcpy(&k, ptr, sizeof(uint32_t));
+			ptr += sizeof(uint32_t);
+			memcpy(&v, ptr, sizeof(uint32_t));
+			ptr += sizeof(uint32_t);
 
 			if(j >= n) {
 				continue;
@@ -324,8 +323,8 @@ bt_load(const char *filename) {
 		b->children = calloc((size_t)(w+1), sizeof(struct bt_node*));
 		/* read children */
 		for(j = 0; j <= w; ++j) {
-			memcpy(&c, ptr, sizeof(long));
-			ptr += sizeof(long);
+			memcpy(&c, ptr, sizeof(uint32_t));
+			ptr += sizeof(uint32_t);
 
 			c = ntohl(c);
 			if(c != 0) {
