@@ -1,7 +1,7 @@
 OUT=db
-OBJS=test.o btree/bt.o ht/dict.o
-CFLAGS=-O0 -ggdb
-LDFLAGS=-lrt
+OBJS=test.o btree/bt.o ht/dict.o net/loop.o
+CFLAGS=-O0 -ggdb -I.
+LDFLAGS=-lrt -levent
 
 all: $(OUT) Makefile
 

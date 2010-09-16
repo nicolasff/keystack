@@ -12,8 +12,9 @@
 #include <fcntl.h>
 #include <arpa/inet.h>
 
-#include "btree/bt.h"
-#include "ht/dict.h"
+#include <btree/bt.h>
+#include <ht/dict.h>
+#include <net/loop.h>
 
 struct outfile {
 
@@ -54,7 +55,7 @@ int
 main(int argc, char *argv[]) {
 
 
-	int fd, i, n = 1000*1000, ret;
+	int fd, i, n = 1000, ret;
 	struct timespec t0, t1;
 
 	struct outfile ctx; /* dump context */
@@ -81,6 +82,9 @@ main(int argc, char *argv[]) {
 		filesize = (filesize + pagesize) & (~(pagesize-1));
 	}
 
+	int socket = net_start("0.0.0.0", 1277);
+	printf("listening on socket %d\n", socket);
+	net_loop(socket, d);
 
 	/* dump DB to disk and save indices */
 
