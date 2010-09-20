@@ -93,13 +93,11 @@ on_available_data(int fd, short event, void *ptr) {
 		cmd_run(c);
 	} else {
 		/* wait for more */
-		event_set(&c->ev, c->fd, EV_READ, on_available_data, c);
-		event_base_set(c->base, &c->ev);
-		event_add(&c->ev, NULL);
+		client_listen(c, on_available_data);
 	}
 }
 
-static void
+void
 on_available_header(int fd, short event, void *ptr) {
 
 	struct client *c = ptr;
@@ -117,9 +115,7 @@ on_available_header(int fd, short event, void *ptr) {
 	c->buffer_got = 0;
 	c->buffer = calloc(c->buffer_sz, 1);
 	/* prepare for new data */
-	event_set(&c->ev, c->fd, EV_READ, on_available_data, c);
-	event_base_set(c->base, &c->ev);
-	event_add(&c->ev, NULL);
+	client_listen(c, on_available_data);
 }
 
 
@@ -128,7 +124,7 @@ on_connect(int fd, short event, void *ptr) {
 	(void)event;
 
 
-	struct event_base *base = ptr;
+	struct server *s = ptr;
 	struct sockaddr_in addr;
 	socklen_t addr_sz = sizeof(addr);
 	int client_fd;
@@ -138,28 +134,27 @@ on_connect(int fd, short event, void *ptr) {
 
 	struct client *c = calloc(sizeof(struct client), 1);
 	c->fd = client_fd;
-	c->base = base;
+	c->s = s;
 
 	/* wait for new data */
 	event_set(&c->ev, c->fd, EV_READ, on_available_header, c);
-	event_base_set(base, &c->ev);
+	event_base_set(s->base, &c->ev);
 	event_add(&c->ev, NULL);
 }
 
 void
-net_loop(int fd, struct dict *d) {
+net_loop(int fd, struct server *s) {
 
-	struct event_base *base = event_base_new();
 	struct event ev;
 
 #ifdef SIGPIPE
 	signal(SIGPIPE, SIG_IGN);
 #endif
 
-	event_set(&ev, fd, EV_READ | EV_PERSIST, on_connect, base);
-	event_base_set(base, &ev);
+	event_set(&ev, fd, EV_READ | EV_PERSIST, on_connect, s);
+	event_base_set(s->base, &ev);
 	event_add(&ev, NULL);
 
-	event_base_loop(base, 0);
+	event_base_loop(s->base, 0);
 }
 

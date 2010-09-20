@@ -10,6 +10,11 @@
 void
 cmd_parse(struct client *c);
 
+void
+cmd_run(struct client *c);
+
+void
+cmd_reply(struct client *c);
 
 #endif
 

@@ -15,6 +15,7 @@
 #include <btree/bt.h>
 #include <ht/dict.h>
 #include <net/loop.h>
+#include <server.h>
 
 struct outfile {
 
@@ -58,6 +59,7 @@ main(int argc, char *argv[]) {
 	int fd, i, n = 1000, ret;
 	struct timespec t0, t1;
 
+	struct server *s;
 	struct outfile ctx; /* dump context */
 	struct dict *d = dict_new(n);
 	size_t filesize = 0;
@@ -84,7 +86,8 @@ main(int argc, char *argv[]) {
 
 	int socket = net_start("0.0.0.0", 1277);
 	printf("listening on socket %d\n", socket);
-	net_loop(socket, d);
+	s = server_new();
+	net_loop(socket, s);
 
 	/* dump DB to disk and save indices */
 

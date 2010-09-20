@@ -7,7 +7,7 @@ struct client {
 
 	int fd;
 	struct event ev;
-	struct event_base *base;
+	struct server *s;
 
 	char cmd;
 	
@@ -22,5 +22,10 @@ struct client {
 	uint32_t buffer_got;
 };
 
+void
+client_reset(struct client *c);
+
+void
+client_listen(struct client *c, void (*fun)(int, short, void*));
 
 #endif

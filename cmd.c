@@ -2,6 +2,8 @@
 #include <stdio.h>
 
 #include <cmd.h>
+#include <ht/dict.h>
+#include <server.h>
 
 static void
 cmd_parse_get(struct client *c) {
@@ -51,6 +53,8 @@ cmd_parse(struct client *c) {
 void
 cmd_run(struct client *c) {
 
+	struct server *s = c->s;
+
 	switch(c->cmd) {
 		case CMD_GET:
 			printf("GET ["); fflush(stdout);
@@ -64,7 +68,20 @@ cmd_run(struct client *c) {
 			printf("]  ["); fflush(stdout);
 			write(1, c->val, c->val_sz);
 			printf("]\n");
+
+			dict_add(s->d, c->key, c->key_sz, c->val);
+			cmd_reply(c);
+
 			break;
 	}
-
 }
+
+void
+cmd_reply(struct client *c) {
+
+	/* TODO */
+	char r = 42;
+	write(c->fd, &r, 1);
+	client_reset(c);
+}
+
