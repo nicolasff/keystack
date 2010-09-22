@@ -65,4 +65,7 @@ typedef void (*foreach_cb)(char *, size_t, char*, size_t, void*);
 void
 dict_foreach(struct dict *d, foreach_cb fun, void *data);
 
+long
+dict_count(struct dict *d);
+
 #endif /* DICT_H */

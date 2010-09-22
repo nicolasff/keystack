@@ -5,6 +5,8 @@
 
 #include <string.h>
 
+#define THRESHOLD_MAX_COUNT	1000
+
 struct server *
 server_new() {
 
@@ -49,7 +51,7 @@ server_set(struct server *s, struct client *c) {
 	dict_set(s->d, c->key, c->key_sz, str, c->val_sz);
 	cmd_reply(c, REPLY_BOOL, 1);
 
-	if(1) { /* TODO: use a proper condition */
+	if(1/*dict_count(s->d) > THRESHOLD_MAX_COUNT*/) { /* TODO: use a proper condition */
 		server_split(s);
 	}
 }
@@ -69,7 +71,7 @@ server_split(struct server *s) {
 
 	/* swap */
 	s->d_old = s->d;
-	s->d = dict_new(s->d_old->ht->sz);
+	s->d = dict_new(dict_count(s->d_old));
 	s->d->key_dup = strndup;
 
 	dump_flush(s, s->d_old, "/tmp/out.bin");

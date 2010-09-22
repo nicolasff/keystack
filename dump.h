@@ -17,6 +17,9 @@ struct dump_info {
 	void *ptr;
 	int pos;
 
+	/* btree index */
+	struct bt_node *index;
+
 	/* current thread */
 	pthread_t thread;
 };

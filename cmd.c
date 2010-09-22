@@ -50,6 +50,9 @@ cmd_parse(struct client *c) {
 	}
 }
 
+/**
+ * Run command
+ */
 void
 cmd_run(struct client *c) {
 
@@ -69,6 +72,7 @@ cmd_run(struct client *c) {
 	}
 }
 
+/* send reply to client */
 void
 cmd_reply(struct client *c, reply_type t, ...) {
 
