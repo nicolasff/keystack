@@ -256,7 +256,7 @@ dict_set(struct dict *d, char *k, size_t k_sz, char *v, size_t v_sz) {
 	dict_rehash(d);
 }
 
-void*
+char*
 dict_get(struct dict *d, char *k, size_t k_sz, size_t *v_sz) {
 
 	struct bucket *b;

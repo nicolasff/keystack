@@ -60,36 +60,11 @@ cmd_run(struct client *c) {
 
 	switch(c->cmd) {
 		case CMD_GET:
-			/*
-			printf("GET ["); fflush(stdout);
-			write(1, c->key, c->key_sz);
-			printf("]\n");
-			*/
-
-			v = dict_get(c->s->d, c->key, c->key_sz, &sz);
-			if(v) {
-				cmd_reply(c, REPLY_STRING, v, sz);
-			} else {
-				cmd_reply(c, REPLY_BOOL, 0);
-			}
-
+			server_get(c->s, c);
 			break;
 
 		case CMD_SET:
-			/*
-			printf("SET ["); fflush(stdout);
-			write(1, c->key, c->key_sz);
-			printf("]  ["); fflush(stdout);
-			write(1, c->val, c->val_sz);
-			printf("]\n");
-			*/
-
-			str = malloc(c->val_sz);
-			memcpy(str, c->val, c->val_sz);
-
-			dict_set(s->d, c->key, c->key_sz, str, c->val_sz);
-			cmd_reply(c, REPLY_BOOL, 1);
-
+			server_set(c->s, c);
 			break;
 	}
 }

@@ -51,7 +51,7 @@ void
 dict_set(struct dict *d, char *k, size_t k_sz, char *v, size_t v_sz);
 
 /* retrieve d[k], with sz = length(k) */
-void*
+char*
 dict_get(struct dict *d, char *k, size_t k_sz, size_t *v_sz);
 
 /* key, key size, value, "data" extra */
