@@ -4,10 +4,12 @@
 #include <pthread.h>
 
 struct dict;
+struct server;
 
 struct dump_info {
 
 	struct dict *d;
+	struct server *s;
 	char *filename;
 
 
@@ -20,6 +22,6 @@ struct dump_info {
 };
 
 void
-dump_flush(struct dict *d, char *filename);
+dump_flush(struct server *s, struct dict *d, char *filename);
 
 #endif /* DUMP_H */

@@ -10,8 +10,9 @@ server_new() {
 
 	struct server *s = calloc(sizeof(struct server), 1);
 	s->d = dict_new(1024);
+	s->d->key_dup = strndup;
 	s->base = event_base_new();
-	s->status = IDLE;
+	s->state = IDLE;
 
 	return s;
 }
@@ -24,7 +25,7 @@ server_get(struct server *s, struct client *c) {
 
 	str = dict_get(s->d, c->key, c->key_sz, &sz);
 	if(!str) {
-		if(s->status == DUMPING) {
+		if(s->state == DUMPING) {
 		str = dict_get(s->d_old, c->key, c->key_sz, &sz);
 		} else {
 			/* TODO: disk lookup */
@@ -47,6 +48,10 @@ server_set(struct server *s, struct client *c) {
 
 	dict_set(s->d, c->key, c->key_sz, str, c->val_sz);
 	cmd_reply(c, REPLY_BOOL, 1);
+
+	if(1) { /* TODO: use a proper condition */
+		server_split(s);
+	}
 }
 
 
@@ -56,17 +61,18 @@ server_set(struct server *s, struct client *c) {
 int
 server_split(struct server *s) {
 
-	if(s->status == DUMPING) {
+	if(s->state == DUMPING) {
 		return -1;
 	}
 
-	s->status = DUMPING;
+	s->state = DUMPING;
 
 	/* swap */
 	s->d_old = s->d;
 	s->d = dict_new(s->d_old->ht->sz);
+	s->d->key_dup = strndup;
 
-	dump_flush(s->d_old, "/tmp/out.bin");
+	dump_flush(s, s->d_old, "/tmp/out.bin");
 
 	return 0;
 }

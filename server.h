@@ -12,7 +12,7 @@ struct server {
 
 	struct event_base *base;
 
-	server_status status;
+	server_status state;
 
 	struct dict *d;
 	struct dict *d_old;
@@ -27,6 +27,9 @@ server_set(struct server *s, struct client *c);
 
 void
 server_get(struct server *s, struct client *c);
+
+int
+server_split(struct server *s);
 
 #endif
 
