@@ -24,10 +24,14 @@ struct ht {
 
 	struct bucket *slots;
 	struct bucket *first;
+
+	/* counters */
+	long count;
+	long total_key_len;
+	long total_val_len;
 };
 
 struct dict {
-	long count;
 
 	unsigned long (*key_hash)(char *, size_t);
 	char* (*key_dup)(const char *, size_t);
@@ -55,9 +59,9 @@ char*
 dict_get(struct dict *d, char *k, size_t k_sz, size_t *v_sz);
 
 /* key, key size, value, "data" extra */
-typedef void (*foreach_cb)(char *, size_t, void*, void*);
+typedef void (*foreach_cb)(char *, size_t, char*, size_t, void*);
 
-/* run f(key, key size, value, data) on each item. */
+/* run f(key, key size, value, value size, data) on each item. */
 void
 dict_foreach(struct dict *d, foreach_cb fun, void *data);
 

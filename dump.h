@@ -10,6 +10,12 @@ struct dump_info {
 	struct dict *d;
 	char *filename;
 
+
+	/* mmap info */
+	void *ptr;
+	int pos;
+
+	/* current thread */
 	pthread_t thread;
 };
 

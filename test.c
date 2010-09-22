@@ -25,7 +25,7 @@ struct outfile {
 };
 
 void
-dump_item(char *k, size_t sz, void *v, void *c) { 
+dump_item(char *k, size_t sz, char *v, size_t v_sz, void *c) { 
 
 	uint32_t data_sz = strlen((char*)v);
 	struct outfile *ctx = c;

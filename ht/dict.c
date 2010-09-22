@@ -104,7 +104,13 @@ ht_insert(struct ht *ht, unsigned long h, char *k, size_t k_sz, char *v, size_t 
 	/* check for re-assignment */
 	while(tmp && tmp->k) {
 		if(tmp->k_sz == k_sz && memcmp(k, tmp->k, k_sz) == 0) {
+
+			/* keep track of used size */
+			ht->total_key_len += k_sz - tmp->k_sz;
+			ht->total_val_len += v_sz - tmp->v_sz;
+
 			tmp->v = v; /* hit! replace */
+			tmp->v_sz = v_sz;
 			return NULL;
 		}
 		tmp = tmp->collision_next;
@@ -121,6 +127,11 @@ ht_insert(struct ht *ht, unsigned long h, char *k, size_t k_sz, char *v, size_t 
 	b->k_sz = k_sz;
 	b->v = v;
 	b->v_sz = v_sz;
+
+	/* keep track of used size */
+	ht->count++;
+	ht->total_key_len += k_sz;
+	ht->total_val_len += v_sz;
 
 	return b;
 }
@@ -242,14 +253,13 @@ dict_set(struct dict *d, char *k, size_t k_sz, char *v, size_t v_sz) {
 	k_dup = d->key_dup(k, k_sz);
 
 	/* check for important load and resize if need be. */
-	if((float)d->count / (float)d->ht->sz > DICT_MAX_LOAD) {
+	if((float)d->ht->count / (float)d->ht->sz > DICT_MAX_LOAD) {
 		/* expand and replace HT */
 		d->ht_old = d->ht;
 		d->ht = ht_new(d->ht->sz + 1); /* will select next prime */
 	}
 
 	if((b = ht_insert(d->ht, h, k_dup, k_sz, v, v_sz))) {
-		d->count++;
 		ht_record_used_bucket(d->ht, b);
 	}
 	
@@ -282,11 +292,14 @@ dict_remove(struct dict *d, char *k, size_t sz) {
 
 	struct bucket *b = NULL;
 	unsigned long h = d->key_hash(k, sz);
+	struct ht *ht;
 
-	if(!(b = ht_get(d->ht, h, k, sz))) {
-		if(d->ht_old && !(b = ht_get(d->ht_old, h, k, sz))) {
-			return -1;
-		}
+	if((b = ht_get(d->ht, h, k, sz))) {
+		ht = d->ht;
+	} else if(d->ht_old && (b = ht_get(d->ht_old, h, k, sz))) {
+		ht = d->ht_old;
+	} else {
+		return -1;
 	}
 
 	/* re-attach elements */
@@ -297,13 +310,16 @@ dict_remove(struct dict *d, char *k, size_t sz) {
 		b->next->prev = b->prev;
 	}
 
+	ht->total_key_len -= b->k_sz;
+	ht->total_val_len -= b->v_sz;
+	ht->count--;
+
 	/* free duplicated key */
 	d->key_free(b->k);
 
 	/* remove bucket */
 	bucket_free(b);
 
-	d->count--;
 	return 0;
 }
 
@@ -325,7 +341,7 @@ dict_foreach(struct dict *d, foreach_cb fun, void *data) {
 	for(i = 0; i < 2; ++i) {
 		struct bucket *b;
 		for(b = heads[i]; b; b = b->next) {
-			fun(b->k, b->k_sz, b->v, data);
+			fun(b->k, b->k_sz, b->v, b->v_sz, data);
 		}
 	}
 }
