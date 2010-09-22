@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <time.h>
+#include <string.h>
 
 #include "bt.h"
 
@@ -9,7 +10,7 @@ main() {
 	struct bt_node *root;
 	int i, n;
 
-	root = bt_node_new(51);
+	root = bt_node_new(251);
 #if 0
 	n = 20;
 	/*
@@ -32,15 +33,19 @@ main() {
 	return 0;
 #endif
 
-	n = 2000*1000;
+	n = 1000*1000;
 #if 1
 	struct timespec t0, t1, t2, t3, t4;
 
 	clock_gettime(CLOCK_MONOTONIC, &t0);
-	for(i = n; i >= 1; i--) {
+	//for(i = n; i >= 1; i--) {
+	for(i = 1; i < n; i++) {
 		struct bt_entry *e;
-		root = bt_insert(root, i, i+1);
-		e = bt_lookup(root, i); /* immediate read-back */
+		char *key = calloc(20, 1);
+		sprintf(key, "key-%d", i);
+		root = bt_insert(root, key, strlen(key), i+1);
+		continue;
+		e = bt_lookup(root, key, strlen(key)); /* immediate read-back */
 		if(e && e->value != i+1) {
 			printf("at k=[%d]: %d\n", i, e->value);
 		}
@@ -55,9 +60,10 @@ main() {
 	clock_gettime(CLOCK_MONOTONIC, &t3);
 	printf("loaded.\n");
 
-	//bt_dump(root); return 0;
 	for(i = 1; i < n; i++) {
-		struct bt_entry *e = bt_lookup(root, i); /* read-back after the whole insertion */
+		char *key = calloc(20, 1);
+		sprintf(key, "key-%d", i);
+		struct bt_entry *e = bt_lookup(root, key, strlen(key)); /* read-back after the whole insertion */
 		if(!e) {
 			printf("e=nil.\n");
 		} else if(e->value != i+1) {

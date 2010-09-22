@@ -4,7 +4,8 @@
 struct bt_node;
 
 struct bt_entry {
-	int key;
+	char *key;
+	size_t key_size;
 	int value;
 };
 
@@ -26,13 +27,13 @@ void
 bt_free(struct bt_node *);
 
 struct bt_node *
-bt_insert(struct bt_node *r, int k, int v);
+bt_insert(struct bt_node *r, char *k, size_t sz, int v);
 
 struct bt_entry *
-bt_lookup(struct bt_node *b, int k);
+bt_lookup(struct bt_node *b, char *k, size_t sz);
 
 struct bt_node *
-bt_delete(struct bt_node *b, int k);
+bt_delete(struct bt_node *b, char *k);
 
 int
 bt_save(struct bt_node *b, const char *filename);

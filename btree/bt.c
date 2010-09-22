@@ -10,6 +10,28 @@
 
 #include "bt.h"
 
+static int
+safe_strcmp(char *s0, size_t sz0, char *s1, size_t sz1, int debug) {
+
+	int ret;
+
+	if(sz0 < sz1) {
+		ret = -1;
+	} else if(sz0 > sz1) {
+		ret = 1;
+	} else if(s1) {
+		ret = memcmp(s0, s1, sz0);
+	} else {
+		ret = -1;
+	}
+
+	if(debug) {
+		printf("memcmp[%s][%zd] [%s][%zd]: %d\n", s0, sz0, s1, sz1, ret);
+	}
+
+	return ret;
+}
+
 struct bt_node *
 bt_node_new(int width) {
 
@@ -39,16 +61,22 @@ bt_free(struct bt_node *b) {
 
 
 struct bt_entry *
-bt_lookup(struct bt_node *b, int k) {
+bt_lookup(struct bt_node *b, char *k, size_t sz) {
 	
 	int i;
 
+	//printf("lookup with k=%s, sz=%zd\n", k, sz);
 	for(i = 0; i <= b->n; ++i) {
-		if(i != b->n && k == b->entries[i].key) { /* found */
+		int cmp;
+		if(i != b->n) {
+			cmp = safe_strcmp(k, sz, b->entries[i].key, b->entries[i].key_size, 0);
+		}
+	//	printf("k=[%s], @i=[%s], cmp=%d\n", k, b->entries[i].key, cmp);
+		if(i != b->n && cmp == 0) { /* found */
 			return b->entries + i;
 		}
-		if((i == b->n || k < b->entries[i].key) && b->children[i]) { /* there is more */
-			return bt_lookup(b->children[i], k);
+		if((i == b->n || cmp < 0) && b->children[i]) { /* there is more */
+			return bt_lookup(b->children[i], k, sz);
 		}
 	}
 	return NULL;
@@ -63,7 +91,8 @@ bt_split_child(struct bt_node *x, int i, struct bt_node *y) {
 
 	for(j = 0; j < t-1; j++) {
 		z->entries[j] = y->entries[j+t];
-		y->entries[j+t].key = 0;
+		y->entries[j+t].key = NULL;
+		y->entries[j+t].key_size = 0;
 		if(!y->leaf) {
 			z->children[j] = y->children[j + t];
 		}
@@ -73,12 +102,14 @@ bt_split_child(struct bt_node *x, int i, struct bt_node *y) {
 		z->children[j] = y->children[j + t];
 	}
 
+	/* shift x's children to the right */
 	y->n = t-1;
 	for(j = x->n + 1; j > i + 1; j--) {
 		x->children[j] = x->children[j-1];
 	}
 	x->children[i+1] = z;
 
+	/* shift x's entries to the right */
 	for(j = x->n; j > i; j--) {
 		x->entries[j] = x->entries[j-1];
 	}
@@ -87,50 +118,55 @@ bt_split_child(struct bt_node *x, int i, struct bt_node *y) {
 }
 
 void
-bt_insert_nonfull(struct bt_node *x, int k, int v) {
+bt_insert_nonfull(struct bt_node *x, char *k, size_t sz, int v) {
 
 	int i = x->n - 1;
 
 	if(x->leaf) { // leaf
-		while(i >= 0 && k < x->entries[i].key) {
+		while(i >= 0 && safe_strcmp(k, sz,
+				x->entries[i].key, x->entries[i].key_size, 0) < 0) {
 			x->entries[i+1] = x->entries[i];
 			i--;
 		}
 		x->entries[i+1].key = k;
+		x->entries[i+1].key_size = sz;
 		x->entries[i+1].value = v;
 		x->n++;
 	} else {
-		while(i >= 0 && k < x->entries[i].key) {
+		while(i >= 0 && safe_strcmp(k, sz,
+				x->entries[i].key, x->entries[i].key_size, 0) < 0) {
 			i--;
 		}
 		i++;
 
 		if(x->children[i]->n == x->width) {
 			bt_split_child(x, i, x->children[i]);
-			if(k > x->entries[i].key) {
+			if(safe_strcmp(k, sz,
+				x->entries[i].key, x->entries[i].key_size, 0) > 0) {
 				i++;
 			}
 		}
-		bt_insert_nonfull(x->children[i], k, v);
+		bt_insert_nonfull(x->children[i], k, sz, v);
 	}
 }
 
 struct bt_node *
-bt_insert(struct bt_node *r, int k, int v) {
+bt_insert(struct bt_node *r, char *k, size_t sz, int v) {
 	if(r->n == r->width) {
 		struct bt_node *s = bt_node_new(r->width);
 		s->children[0] = r;
 		s->leaf = 0;
 		bt_split_child(s, 0, r);
-		bt_insert_nonfull(s, k, v);
+		bt_insert_nonfull(s, k, sz, v);
 		return s;
 	} else {
-		bt_insert_nonfull(r, k, v);
+		bt_insert_nonfull(r, k, sz, v);
 		return r;
 	}
 }
 		
 
+#if 1
 static void*
 bt_write_block(void *p, struct bt_node *b, uint32_t id, uint32_t *maxid) {
 
@@ -142,23 +178,32 @@ bt_write_block(void *p, struct bt_node *b, uint32_t id, uint32_t *maxid) {
 	p += sizeof(uint32_t);
 
 	/* write block size */
-	char block_sz = b->n;
+	uint8_t block_sz = b->n;
 	memcpy(p, &block_sz, 1);
 	p++;
 	
 	/* write block entries */
 	uint32_t first_child = *maxid, child = *maxid;
 	for(i = 0; i < b->width; i++) {
-		long k, v;
+		uint32_t k_sz, v;
 		if(i < b->n) {
-			k = htonl(b->entries[i].key);
+			k_sz = htonl(b->entries[i].key_size);
 			v = htonl(b->entries[i].value);
 		} else {
-			k = v = htonl(0);
+			k_sz = v = htonl(0);
 		}
 
-		memcpy(p, &k, sizeof(uint32_t));
+		/* write key size */
+		memcpy(p, &k_sz, sizeof(uint32_t));
 		p += sizeof(uint32_t);
+
+		/* write key */
+		if(i < b->n && b->entries[i].key_size != 0) {
+			memcpy(p, b->entries[i].key, b->entries[i].key_size);
+			p += b->entries[i].key_size;
+		}
+
+		/* write value */
 		memcpy(p, &v, sizeof(uint32_t));
 		p += sizeof(uint32_t);
 	}
@@ -188,35 +233,37 @@ bt_write_block(void *p, struct bt_node *b, uint32_t id, uint32_t *maxid) {
 	}
 	return p;
 }
+#endif
 
 /**
  * Counts the number of nodes
  */
-static int
-bt_count(struct bt_node *b) {
+static long
+bt_compute_size(struct bt_node *b, uint32_t *count) {
 
-	int count = 1, i;
+	int i;
+	(*count)++;	/* count current node */
+	long sz = sizeof(uint32_t) /* id */
+			+ 1 /* n */
+			+ b->width * sizeof(uint32_t) * 2
+			+ (b->width + 1) * sizeof(uint32_t);
+
 	for(i = 0; i <= b->n; i++) {
+		if(i < b->n && b->entries[i].key_size != 0) {
+			sz += b->entries[i].key_size;
+		}
 		if(b->children[i]) {
-			count += bt_count(b->children[i]);
+			sz += bt_compute_size(b->children[i], count);
 		}
 	}
-	return count;
-}
-
-static int
-bt_node_size(struct bt_node *b) {
-	return sizeof(uint32_t) 			/* id */
-		+ 1					/* n */
-		+ 2 * b->width * sizeof(uint32_t)	/* keys, values */
-		+ (1+b->width) * sizeof(uint32_t);	/* children */
+	return sz;
 }
 
 int
 bt_save(struct bt_node *b, const char *filename) {
 
 	int fd, ret;
-	uint32_t count, maxid = 2, w = b->width;
+	uint32_t count = 0, maxid = 2, w = b->width;
 	long filesize, pagesize;
 	int delta = sizeof(uint32_t) * 2;
 	void *ptr;
@@ -228,10 +275,9 @@ bt_save(struct bt_node *b, const char *filename) {
 	}
 
 	/* count nodes */
-	count = bt_count(b);
+	filesize = bt_compute_size(b, &count) + 2 * sizeof(uint32_t);
 
 	/* compute file size */
-	filesize = bt_node_size(b) * count;
 	pagesize = sysconf(_SC_PAGE_SIZE);
 	if(filesize % pagesize) {
 		filesize = (filesize + pagesize) & (~(pagesize-1));
@@ -293,8 +339,8 @@ bt_load(const char *filename) {
 
 	for(i = 0; i < count; ++i) {
 
-		uint32_t id, k, v, c;
-		char n;
+		uint32_t id, k_sz, v, c;
+		uint8_t n;
 		memcpy(&id, ptr, sizeof(uint32_t));
 		ptr += sizeof(uint32_t);
 		id = ntohl(id);
@@ -308,16 +354,27 @@ bt_load(const char *filename) {
 		b->entries = calloc((size_t)w, sizeof(struct bt_entry));
 		/* read k, v */
 		for(j = 0; j < (int)w; ++j) {
-			memcpy(&k, ptr, sizeof(uint32_t));
+			memcpy(&k_sz, ptr, sizeof(uint32_t));
 			ptr += sizeof(uint32_t);
+			k_sz = ntohl(k_sz);
+
+			if(k_sz) {
+				b->entries[j].key = malloc(k_sz);
+				memcpy(b->entries[j].key, ptr, k_sz);
+				ptr += k_sz;
+			}
+
 			memcpy(&v, ptr, sizeof(uint32_t));
 			ptr += sizeof(uint32_t);
+			v = ntohl(v);
 
 			if(j >= (int)n) {
 				continue;
 			}
-			b->entries[j].key = ntohl(k);
-			b->entries[j].value = ntohl(v);
+
+			b->entries[j].key_size = k_sz;
+			b->entries[j].value = v;
+
 		}
 
 		b->children = calloc((size_t)(w+1), sizeof(struct bt_node*));
@@ -339,6 +396,7 @@ bt_load(const char *filename) {
 	return nodes;
 }
 
+#if 1
 void
 bt_dump_(struct bt_node *b, int indent) {
 
@@ -359,7 +417,10 @@ bt_dump_(struct bt_node *b, int indent) {
 
 		if(b->entries[i].key) {
 			//printf("%2d", b->entries[i].key);
-			printf("%d", b->entries[i].key);
+			printf("(%zd) ", b->entries[i].key_size);
+			fflush(stdout);
+			write(1, b->entries[i].key, b->entries[i].key_size);
+			printf(" [v=%d]", b->entries[i].value);
 		}
 	}
 	printf("]\n");
@@ -380,4 +441,5 @@ bt_dump(struct bt_node *b) {
 
 	bt_dump_(b, 0);
 }
+#endif
 
