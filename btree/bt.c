@@ -207,7 +207,7 @@ bt_count(struct bt_node *b) {
 static int
 bt_node_size(struct bt_node *b) {
 	return sizeof(uint32_t) 			/* id */
-		+ 1				/* n */
+		+ 1					/* n */
 		+ 2 * b->width * sizeof(uint32_t)	/* keys, values */
 		+ (1+b->width) * sizeof(uint32_t);	/* children */
 }
@@ -261,11 +261,11 @@ bt_load(const char *filename) {
 
 	int fd, i, j, ret;
 	struct bt_node *nodes, *b;
-	uint32_t count;
+	long count;
 	struct stat buf;
 	long filesize = 0;
 	void *ptr, *p;
-	char w;
+	uint32_t w;
 
 	ret = stat(filename, &buf);
 	if(ret != 0) {
@@ -284,36 +284,36 @@ bt_load(const char *filename) {
 	ptr += sizeof(uint32_t);
 	count = ntohl(count);
 
+	memcpy(&w, ptr, sizeof(uint32_t));
+	ptr += sizeof(uint32_t);
+	w = ntohl(w);
 
-	memcpy(&w, ptr, 1);
-	ptr++;
-
-	printf("loading %d nodes\n", count);
+	printf("loading %ld nodes of width %d\n", count, (int)w);
 	nodes = calloc((size_t)count, sizeof(struct bt_node));
 
 	for(i = 0; i < count; ++i) {
 
-		uint32_t id, n, k, v, c;
+		uint32_t id, k, v, c;
+		char n;
 		memcpy(&id, ptr, sizeof(uint32_t));
 		ptr += sizeof(uint32_t);
 		id = ntohl(id);
 		b = nodes + (id-1);
 
-		memcpy(&n, ptr, sizeof(uint32_t));
-		ptr += sizeof(uint32_t);
-		n = ntohl(n);
+		memcpy(&n, ptr, 1);
+		ptr++;
 		b->n = n;
 		b->width = w;
 
 		b->entries = calloc((size_t)w, sizeof(struct bt_entry));
 		/* read k, v */
-		for(j = 0; j < w; ++j) {
+		for(j = 0; j < (int)w; ++j) {
 			memcpy(&k, ptr, sizeof(uint32_t));
 			ptr += sizeof(uint32_t);
 			memcpy(&v, ptr, sizeof(uint32_t));
 			ptr += sizeof(uint32_t);
 
-			if(j >= n) {
+			if(j >= (int)n) {
 				continue;
 			}
 			b->entries[j].key = ntohl(k);
@@ -322,7 +322,7 @@ bt_load(const char *filename) {
 
 		b->children = calloc((size_t)(w+1), sizeof(struct bt_node*));
 		/* read children */
-		for(j = 0; j <= w; ++j) {
+		for(j = 0; j <= (int)w; ++j) {
 			memcpy(&c, ptr, sizeof(uint32_t));
 			ptr += sizeof(uint32_t);
 
