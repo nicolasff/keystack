@@ -95,7 +95,7 @@ ht_free(struct ht *ht, void (*key_free)(void*)) {
 
 /* inset into a HT */
 static struct bucket *
-ht_insert(struct ht *ht, unsigned long h, char *k, size_t sz, void *v) {
+ht_insert(struct ht *ht, unsigned long h, char *k, size_t k_sz, char *v, size_t v_sz) {
 
 	struct bucket *b, *head, *tmp;
 
@@ -103,7 +103,7 @@ ht_insert(struct ht *ht, unsigned long h, char *k, size_t sz, void *v) {
 
 	/* check for re-assignment */
 	while(tmp && tmp->k) {
-		if(tmp->sz == sz && memcmp(k, tmp->k, sz) == 0) {
+		if(tmp->k_sz == k_sz && memcmp(k, tmp->k, k_sz) == 0) {
 			tmp->v = v; /* hit! replace */
 			return NULL;
 		}
@@ -118,20 +118,21 @@ ht_insert(struct ht *ht, unsigned long h, char *k, size_t sz, void *v) {
 		b->collision_prev = head;
 	}
 	b->k = k;
-	b->sz = sz;
+	b->k_sz = k_sz;
 	b->v = v;
+	b->v_sz = v_sz;
 
 	return b;
 }
 
 /* lookup a key in a HT */
 static struct bucket *
-ht_get(struct ht *ht, unsigned long h, char *k, size_t sz) {
+ht_get(struct ht *ht, unsigned long h, char *k, size_t k_sz) {
 
 	struct bucket *b = &ht->slots[h % ht->sz];
 
 	while(b) {
-		if(b->k && sz == b->sz && memcmp(k, b->k, sz) == 0) { /* found! */
+		if(b->k && k_sz == b->k_sz && memcmp(k, b->k, k_sz) == 0) { /* found! */
 			return b;
 		}
 		b = b->collision_next;
@@ -153,8 +154,8 @@ ht_record_used_bucket(struct ht *ht, struct bucket *b) {
 
 
 static char*
-key_dup_default(const char *k, size_t sz) {
-	(void)sz;
+key_dup_default(const char *k, size_t k_sz) {
+	(void)k_sz;
 	return (char*)k;
 }
 static void
@@ -206,9 +207,9 @@ dict_rehash(struct dict *d) {
 	for(b = d->ht_old->first; b && k--;) {
 
 		struct bucket *b_new;
-		unsigned long h = d->key_hash(b->k, b->sz);
+		unsigned long h = d->key_hash(b->k, b->k_sz);
 
-		if((b_new = ht_insert(d->ht, h, b->k, b->sz, b->v))) {
+		if((b_new = ht_insert(d->ht, h, b->k, b->k_sz, b->v, b->v_sz))) {
 			/* new used slot, add to list. */
 			ht_record_used_bucket(d->ht, b_new);
 		}
@@ -231,14 +232,14 @@ dict_rehash(struct dict *d) {
 
 /* add an item into the dictionary */
 void
-dict_add(struct dict *d, char *k, size_t sz, void *v) {
+dict_set(struct dict *d, char *k, size_t k_sz, char *v, size_t v_sz) {
 
 	struct bucket *b;
 	char *k_dup = k;
-	unsigned long h = d->key_hash(k, sz);
+	unsigned long h = d->key_hash(k, k_sz);
 
 	/* possibly duplicate key */
-	k_dup = d->key_dup(k, sz);
+	k_dup = d->key_dup(k, k_sz);
 
 	/* check for important load and resize if need be. */
 	if((float)d->count / (float)d->ht->sz > DICT_MAX_LOAD) {
@@ -247,7 +248,7 @@ dict_add(struct dict *d, char *k, size_t sz, void *v) {
 		d->ht = ht_new(d->ht->sz + 1); /* will select next prime */
 	}
 
-	if((b = ht_insert(d->ht, h, k_dup, sz, v))) {
+	if((b = ht_insert(d->ht, h, k_dup, k_sz, v, v_sz))) {
 		d->count++;
 		ht_record_used_bucket(d->ht, b);
 	}
@@ -256,14 +257,20 @@ dict_add(struct dict *d, char *k, size_t sz, void *v) {
 }
 
 void*
-dict_get(struct dict *d, char *k, size_t sz) {
+dict_get(struct dict *d, char *k, size_t k_sz, size_t *v_sz) {
 
 	struct bucket *b;
-	unsigned long h = d->key_hash(k, sz);
+	unsigned long h = d->key_hash(k, k_sz);
 
-	if((b = ht_get(d->ht, h, k, sz))) {
+	if((b = ht_get(d->ht, h, k, k_sz))) {
+		if(v_sz) {
+			*v_sz = b->v_sz;
+		}
 		return b->v;
-	} else if(d->ht_old && (b = ht_get(d->ht_old, h, k, sz))) {
+	} else if(d->ht_old && (b = ht_get(d->ht_old, h, k, k_sz))) {
+		if(v_sz) {
+			*v_sz = b->v_sz;
+		}
 		return b->v;
 	}
 
@@ -318,7 +325,7 @@ dict_foreach(struct dict *d, foreach_cb fun, void *data) {
 	for(i = 0; i < 2; ++i) {
 		struct bucket *b;
 		for(b = heads[i]; b; b = b->next) {
-			fun(b->k, b->sz, b->v, data);
+			fun(b->k, b->k_sz, b->v, data);
 		}
 	}
 }

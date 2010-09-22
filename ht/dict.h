@@ -6,9 +6,11 @@
 struct bucket {
 	
 	char *k;
-	void *v;
+	size_t k_sz;
 
-	size_t sz;
+	char *v;
+	size_t v_sz;
+
 
 	struct bucket *collision_prev; /* same hash! */
 	struct bucket *collision_next;
@@ -46,11 +48,11 @@ dict_free(struct dict *d);
 
 /* Add d[k] = v, with sz = length(k) */
 void
-dict_add(struct dict *d, char *k, size_t sz, void *v);
+dict_set(struct dict *d, char *k, size_t k_sz, char *v, size_t v_sz);
 
 /* retrieve d[k], with sz = length(k) */
 void*
-dict_get(struct dict *d, char *k, size_t sz);
+dict_get(struct dict *d, char *k, size_t k_sz, size_t *v_sz);
 
 /* key, key size, value, "data" extra */
 typedef void (*foreach_cb)(char *, size_t, void*, void*);

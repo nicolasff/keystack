@@ -55,7 +55,8 @@ cmd_run(struct client *c) {
 
 	struct server *s = c->s;
 	void* v;
-	struct string *str;
+	char *str;
+	size_t sz;
 
 	switch(c->cmd) {
 		case CMD_GET:
@@ -65,9 +66,9 @@ cmd_run(struct client *c) {
 			printf("]\n");
 			*/
 
-			v = dict_get(c->s->d, c->key, c->key_sz);
+			v = dict_get(c->s->d, c->key, c->key_sz, &sz);
 			if(v) {
-				cmd_reply(c, REPLY_STRING, v);
+				cmd_reply(c, REPLY_STRING, v, sz);
 			} else {
 				cmd_reply(c, REPLY_BOOL, 0);
 			}
@@ -83,12 +84,10 @@ cmd_run(struct client *c) {
 			printf("]\n");
 			*/
 
-			str = malloc(sizeof(struct string));
-			str->sz = c->val_sz;
-			str->data = malloc(c->val_sz);
-			memcpy(str->data, c->val, c->val_sz);
+			str = malloc(c->val_sz);
+			memcpy(str, c->val, c->val_sz);
 
-			dict_add(s->d, c->key, c->key_sz, str);
+			dict_set(s->d, c->key, c->key_sz, str, c->val_sz);
 			cmd_reply(c, REPLY_BOOL, 1);
 
 			break;
@@ -98,8 +97,8 @@ cmd_run(struct client *c) {
 void
 cmd_reply(struct client *c, reply_type t, ...) {
 
-	struct string *s;
-	uint32_t sz;
+	char *s;
+	uint32_t sz, sz_net;
 	char b, type = t;
 	va_list ap;
 	va_start(ap, t);
@@ -114,10 +113,11 @@ cmd_reply(struct client *c, reply_type t, ...) {
 			break;
 
 		case REPLY_STRING:
-			s = va_arg(ap, struct string *); /* get string */
-			sz = htonl(s->sz);
-			write(c->fd, &sz, sizeof(uint32_t));
-			write(c->fd, s->data, s->sz);
+			s = va_arg(ap, char*); /* get string */
+			sz = va_arg(ap, size_t);
+			sz_net = htonl(sz);
+			write(c->fd, &sz_net, sizeof(uint32_t));
+			write(c->fd, s, sz);
 			break;
 	}
 	

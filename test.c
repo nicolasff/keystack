@@ -74,7 +74,7 @@ main(int argc, char *argv[]) {
 		sprintf(key, "key-%d", i);
 		memset(val, 'A', 99);
 
-		dict_add(d, key, strlen(key), val);
+		dict_set(d, key, strlen(key), val, strlen(val));
 		filesize += sizeof(size_t) * 2 + strlen(key) + strlen(val);
 	}
 

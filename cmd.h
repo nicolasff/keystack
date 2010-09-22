@@ -18,10 +18,5 @@ cmd_run(struct client *c);
 void
 cmd_reply(struct client *c, reply_type t, ...);
 
-struct string {
-	char *data;
-	uint32_t sz;
-};
-
 #endif
 
