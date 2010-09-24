@@ -6,7 +6,7 @@
 #include <string.h>
 #include <stdio.h>
 
-#define THRESHOLD_MAX_COUNT	10
+#define THRESHOLD_MAX_COUNT	10000
 
 struct server *
 server_new() {
@@ -28,12 +28,12 @@ server_get(struct server *s, struct client *c) {
 
 	str = dict_get(s->d, c->key, c->key_sz, &sz);
 	if(!str) {
-		printf("not found.\n");
+		//printf("not found.\n");
 		if(s->state == DUMPING) {
-			printf("check in other table.\n");
+			//printf("check in other table.\n");
 			str = dict_get(s->d_old, c->key, c->key_sz, &sz);
 		} else {
-			printf("disk lookup.\n");
+			//printf("disk lookup.\n");
 			/* TODO: disk lookup */
 		}
 	}
@@ -55,7 +55,7 @@ server_set(struct server *s, struct client *c) {
 	dict_set(s->d, c->key, c->key_sz, str, c->val_sz);
 	cmd_reply(c, REPLY_BOOL, 1);
 
-	if(dict_count(s->d) >= THRESHOLD_MAX_COUNT) { /* TODO: use a proper condition */
+	if(0 && dict_count(s->d) >= THRESHOLD_MAX_COUNT) { /* TODO: use a proper condition */
 		server_split(s);
 	}
 }
@@ -67,6 +67,7 @@ server_set(struct server *s, struct client *c) {
 int
 server_split(struct server *s) {
 
+	char *db_name, *index_name;
 	if(s->state == DUMPING) {
 		return -1;
 	}
@@ -78,7 +79,13 @@ server_split(struct server *s) {
 	s->d = dict_new(dict_count(s->d_old));
 	s->d->key_dup = strndup;
 
-	dump_flush(s, s->d_old, "/tmp/out.bin");
+	db_name = calloc(50, 1);
+	sprintf(db_name, "/tmp/kv-%d.db", s->dump_count);
+	index_name = calloc(50, 1);
+	sprintf(index_name, "/tmp/kv-%d.index", s->dump_count);
+
+	s->dump_count++;
+	dump_flush(s, s->d_old, db_name, index_name);
 
 	return 0;
 }

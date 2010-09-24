@@ -14,6 +14,8 @@ struct server {
 
 	server_status state;
 
+	int dump_count;
+
 	struct dict *d;
 	struct dict *d_old;
 

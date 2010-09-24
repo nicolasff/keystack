@@ -101,7 +101,6 @@ void
 on_available_header(int fd, short event, void *ptr) {
 
 	struct client *c = ptr;
-	char magic;
 	int ret;
 
 	ret = read(fd, &c->buffer_sz, sizeof(uint32_t));

@@ -10,7 +10,8 @@ struct dump_info {
 
 	struct dict *d;
 	struct server *s;
-	char *filename;
+	char *db_name;
+	char *index_name;
 
 
 	/* mmap info */
@@ -25,6 +26,6 @@ struct dump_info {
 };
 
 void
-dump_flush(struct server *s, struct dict *d, char *filename);
+dump_flush(struct server *s, struct dict *d, char *db_name, char *index_name);
 
 #endif /* DUMP_H */

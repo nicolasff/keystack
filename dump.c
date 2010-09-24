@@ -53,7 +53,7 @@ dump_thread_main(void *ptr) {
 	long filesize, pagesize;
 	int fd;
 
-	printf("Dumping to [%s]\n", di->filename);
+	printf("Dumping to [%s]\n", di->db_name);
 
 	/* compute file size */
 	filesize = sizeof(size_t) * 2 * di->d->ht->count
@@ -66,7 +66,7 @@ dump_thread_main(void *ptr) {
 	printf("filesize=%ld\n", filesize);
 
 	/* stretch file */
-	fd = open(di->filename, O_RDWR | O_CREAT | O_TRUNC, 0600);
+	fd = open(di->db_name, O_RDWR | O_CREAT | O_TRUNC, 0600);
 	lseek(fd, filesize-1, SEEK_SET);
 	write(fd, "", 1);
 
@@ -82,7 +82,7 @@ dump_thread_main(void *ptr) {
 	close(fd);
 
 	/* save index to file */
-	bt_save(di->index, "/tmp/out.index");
+	bt_save(di->index, di->index_name);
 	bt_free(di->index);
 
 //	dict_free(di->d);
@@ -94,13 +94,14 @@ dump_thread_main(void *ptr) {
 
 
 void
-dump_flush(struct server *s, struct dict *d, char *filename) {
+dump_flush(struct server *s, struct dict *d, char *db_name, char *index_name) {
 
 	struct dump_info *di = calloc(sizeof(struct dump_info), 1);
 
 	di->d = d;
 	di->s = s;
-	di->filename = filename;
+	di->db_name = db_name;
+	di->index_name = index_name;
 
 	pthread_create(&di->thread, NULL, dump_thread_main, di);
 }
