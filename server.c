@@ -4,8 +4,9 @@
 #include <cmd.h>
 
 #include <string.h>
+#include <stdio.h>
 
-#define THRESHOLD_MAX_COUNT	1000
+#define THRESHOLD_MAX_COUNT	10
 
 struct server *
 server_new() {
@@ -27,9 +28,12 @@ server_get(struct server *s, struct client *c) {
 
 	str = dict_get(s->d, c->key, c->key_sz, &sz);
 	if(!str) {
+		printf("not found.\n");
 		if(s->state == DUMPING) {
-		str = dict_get(s->d_old, c->key, c->key_sz, &sz);
+			printf("check in other table.\n");
+			str = dict_get(s->d_old, c->key, c->key_sz, &sz);
 		} else {
+			printf("disk lookup.\n");
 			/* TODO: disk lookup */
 		}
 	}
@@ -51,7 +55,7 @@ server_set(struct server *s, struct client *c) {
 	dict_set(s->d, c->key, c->key_sz, str, c->val_sz);
 	cmd_reply(c, REPLY_BOOL, 1);
 
-	if(1/*dict_count(s->d) > THRESHOLD_MAX_COUNT*/) { /* TODO: use a proper condition */
+	if(dict_count(s->d) >= THRESHOLD_MAX_COUNT) { /* TODO: use a proper condition */
 		server_split(s);
 	}
 }

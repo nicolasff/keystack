@@ -8,7 +8,6 @@
 int
 main(int argc, char *argv[]) {
 
-
 	struct server *s;
 	int fd = net_start("0.0.0.0", 1277);
 

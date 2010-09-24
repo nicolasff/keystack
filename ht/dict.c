@@ -348,10 +348,12 @@ dict_foreach(struct dict *d, foreach_cb fun, void *data) {
 
 long
 dict_count(struct dict *d) {
+	
 	long l = d->ht->count;
 	if(d->ht_old) {
 		l += d->ht_old->count;
 	}
+	printf("total count: %ld\n", l);
 	return l;
 }
 

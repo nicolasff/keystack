@@ -21,11 +21,13 @@ dump_item(char *k, size_t k_sz, char *v, size_t v_sz, void *ctx) {
 
 	struct dump_info *di = ctx;
 	int pos = di->pos;
+	uint32_t sz;
 
 	printf("dumping item [%s] -> [%s]\n", k, v);
 
 	/* key size */
-	memcpy(di->ptr + di->pos, &k_sz, sizeof(uint32_t));
+	sz = htonl(k_sz);
+	memcpy(di->ptr + di->pos, &sz, sizeof(uint32_t));
 	di->pos += sizeof(uint32_t);
 
 	/* key */
@@ -33,7 +35,8 @@ dump_item(char *k, size_t k_sz, char *v, size_t v_sz, void *ctx) {
 	di->pos += k_sz;
 
 	/* val size */
-	memcpy(di->ptr + di->pos, &v_sz, sizeof(uint32_t));
+	sz = htonl(v_sz);
+	memcpy(di->ptr + di->pos, &sz, sizeof(uint32_t));
 	di->pos += sizeof(uint32_t);
 
 	/* key */
@@ -84,6 +87,7 @@ dump_thread_main(void *ptr) {
 
 //	dict_free(di->d);
 //	free(di);
+	printf("dump over\n");
 	di->s->state = IDLE;
 	return NULL;
 }
