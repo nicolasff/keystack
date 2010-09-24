@@ -40,7 +40,7 @@ dump_item(char *k, size_t k_sz, char *v, size_t v_sz, void *ctx) {
 	memcpy(di->ptr + di->pos, v, v_sz);
 	di->pos += v_sz;
 
-	di->index = bt_insert(di->index, (int)(long)k, pos);
+	di->index = bt_insert(di->index, k, k_sz, pos);
 }
 
 void *
@@ -80,6 +80,7 @@ dump_thread_main(void *ptr) {
 
 	/* save index to file */
 	bt_save(di->index, "/tmp/out.index");
+	bt_free(di->index);
 
 //	dict_free(di->d);
 //	free(di);
