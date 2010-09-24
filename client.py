@@ -19,25 +19,24 @@ class Client:
 
 	def set(self, key, val):
 		pkt = self.fmtString("\x02" + self.fmtString(key) + self.fmtString(val))
-		self.s.send(pkt)
-		return self.parse(self.s.recv(1) + self.s.recv(1024))
+		return self.run(pkt)
 
 	def get(self, key):
 		pkt = self.fmtString("\x01" + self.fmtString(key))
+		return self.run(pkt)
+
+	def run(self, pkt):
 		self.s.send(pkt)
-		return self.parse(self.s.recv(1) + self.s.recv(1024))
+		cmdType = self.s.recv(1)
 
+		if cmdType == "\x00":
+			b = self.s.recv(1)
+			return (b == "\x01")
 
-	def parse(self, pkt):
-		# print [ord(c) for c in pkt]
-		if pkt[0] == "\x00":
-			if pkt[1] == "\x00":
-				return False
-			elif pkt[1] == "\x01":
-				return True
-		elif pkt[0] == "\x01":
-			(sz,) = struct.unpack('>l', pkt[1:5])
-			s = pkt[5:5+sz]
+		elif cmdType == "\x01":
+			szStr = self.s.recv(4)
+			(sz,) = struct.unpack('>l', szStr)
+			s = self.s.recv(sz)
 			return (sz, s)
 
 c = Client()
