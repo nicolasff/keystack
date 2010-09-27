@@ -52,6 +52,9 @@ server_set(struct server *s, struct client *c) {
 	char *str = malloc(c->val_sz);
 	memcpy(str, c->val, c->val_sz);
 
+	//printf("set [%s] -> (%d)[", c->key, c->val_sz); fflush(stdout);
+	//write(1, str, c->val_sz);
+	//printf("]\n");
 	dict_set(s->d, c->key, c->key_sz, str, c->val_sz);
 	cmd_reply(c, REPLY_BOOL, 1);
 

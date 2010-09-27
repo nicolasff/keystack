@@ -82,11 +82,17 @@ cmd_reply(struct client *c, reply_type t, ...) {
 	va_list ap;
 	va_start(ap, t);
 
-	/* write type first */
-	write(c->fd, &type, 1);
 
 	switch(t) {
 		case REPLY_BOOL:
+			/* write size first */
+			sz = htonl(2);
+			write(c->fd, &sz, sizeof(uint32_t));
+
+			/* write type, 1 byte */
+			write(c->fd, &type, 1);
+
+			/* write value, 1 byte */
 			b = va_arg(ap, int);
 			write(c->fd, &b, 1);
 			break;
@@ -94,6 +100,11 @@ cmd_reply(struct client *c, reply_type t, ...) {
 		case REPLY_STRING:
 			s = va_arg(ap, char*); /* get string */
 			sz = va_arg(ap, size_t);
+
+			/* write total size first */
+			sz_net = htonl(1 + sizeof(uint32_t) + sz);
+			write(c->fd, &sz, sizeof(uint32_t));
+
 			sz_net = htonl(sz);
 			write(c->fd, &sz_net, sizeof(uint32_t));
 			write(c->fd, s, sz);

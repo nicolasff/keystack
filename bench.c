@@ -2,10 +2,21 @@
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
+#include <event.h>
 
 #include <arpa/inet.h>
 #include <sys/types.h>
 #include <sys/socket.h>
+
+struct client {
+
+	int fd;
+
+	int msg_sz;
+	char *buffer;
+	size_t got;
+	size_t remain;
+};
 
 void
 read_reply(int fd) {
@@ -51,8 +62,6 @@ set(int fd, char *key, uint32_t key_sz, char *val, uint32_t val_sz) {
 
 	int ret = write(fd, cmd, sz + 4);
 	free(cmd);
-
-	read_reply(fd);
 }
 
 void
@@ -71,15 +80,77 @@ get(int fd, char *key, uint32_t key_sz) {
 
 	write(fd, cmd, sz + 4);
 	free(cmd);
+}
 
-	read_reply(fd);
+void
+on_possible_read(int fd, short event, void *ptr) {
+
+	struct client *c = ptr;
+	int ret;
+
+	ret = read(fd, c->buffer + c->got, c->remain);
+	if(ret) {
+		/*printf("just read %d bytes\n", ret);*/
+		c->got += ret;
+		c->remain -= ret;
+	}
+
+	if(c->msg_sz == -1 && c->remain == 0) { /* just got headers */
+		uint32_t sz;
+		memcpy(&sz, c->buffer, 4);
+		sz = ntohl(sz);
+		free(c->buffer);
+		/*printf("just got headers, expecting %d bytes\n", sz);*/
+		c->got = 0;
+		c->msg_sz = (int)sz;
+		c->remain = sz;
+		c->buffer = malloc(sz);
+		
+	} else if(c->remain == 0) { /* got a complete answer */
+		/*printf("got a complete message\n");*/
+		free(c->buffer);
+		c->buffer = malloc(4);
+		c->got = 0;
+		c->remain = 4;
+		c->msg_sz = -1;
+	}
+}
+
+void
+on_possible_write(int fd, short event, void *ptr) {
+
+	int *i = ptr;
+	char c;
+	char key[50], val[50];
+
+	if((*i) > 2) {
+	//	return;
+	}
+	(*i)++;
+	sprintf(key, "key-%d", *i);
+	sprintf(val, "val-%d", *i);
+
+	set(fd, key, strlen(key), val, strlen(val));
+//	get(fd, key, strlen(key));
+
+	if((*i) % 1000 == 0) {
+		printf("sent %d commands\n", *i);
+	}
 }
 
 int
 main() {
 
-	int fd, ret, i=0;
+	int fd, ret, i = 0;
 	struct sockaddr_in addr;
+	struct client c;
+	struct event ev_r, ev_w;
+	struct event_base *base = event_base_new();
+
+	c.msg_sz = -1;
+	c.buffer = malloc(4);
+	c.got = 0;
+	c.remain = 4;
 
 	fd = socket(AF_INET, SOCK_STREAM, 0);
 	addr.sin_family = AF_INET;
@@ -89,6 +160,17 @@ main() {
 
 	ret = connect(fd, (struct sockaddr*)&addr, sizeof(struct sockaddr));
 
+	event_set(&ev_r, fd, EV_READ | EV_PERSIST, on_possible_read, &c);
+	event_base_set(base, &ev_r);
+	event_add(&ev_r, NULL);
+
+	event_set(&ev_w, fd, EV_WRITE | EV_PERSIST, on_possible_write, &i);
+	event_base_set(base, &ev_w);
+	event_add(&ev_w, NULL);
+
+	event_base_loop(base, 0);
+
+#if 0
 	while(++i) {
 		char c;
 		char key[50], val[50];
@@ -102,6 +184,7 @@ main() {
 			printf("sent %d commands\n", i);
 	//	}
 	}
+#endif
 
 	return 0;
 }
