@@ -50,7 +50,7 @@ set(int fd, char *key, uint32_t key_sz, char *val, uint32_t val_sz) {
 	
 	tmp = htonl(sz);
 	memcpy(cmd, &tmp, 4);
-	cmd[4] = 1;
+	cmd[4] = 2;
 	
 	tmp = htonl(key_sz);
 	memcpy(cmd + 4 + 1, &tmp, 4);
@@ -72,7 +72,7 @@ get(int fd, char *key, uint32_t key_sz) {
 	
 	tmp = htonl(sz);
 	memcpy(cmd, &tmp, 4);
-	cmd[4] = 2;
+	cmd[4] = 1;
 	
 	tmp = htonl(key_sz);
 	memcpy(cmd + 4 + 1, &tmp, 4);
@@ -124,14 +124,14 @@ on_possible_write(int fd, short event, void *ptr) {
 	char key[50], val[50];
 
 	if((*i) > 2) {
-	//	return;
+		//return;
 	}
 	(*i)++;
 	sprintf(key, "key-%d", *i);
 	sprintf(val, "val-%d", *i);
 
 	set(fd, key, strlen(key), val, strlen(val));
-//	get(fd, key, strlen(key));
+	get(fd, key, strlen(key));
 
 	if((*i) % 1000 == 0) {
 		printf("sent %d commands\n", *i);
@@ -169,22 +169,6 @@ main() {
 	event_add(&ev_w, NULL);
 
 	event_base_loop(base, 0);
-
-#if 0
-	while(++i) {
-		char c;
-		char key[50], val[50];
-		sprintf(key, "key-%d", i);
-		sprintf(val, "val-%d", i);
-
-		set(fd, key, strlen(key), val, strlen(val));
-		get(fd, key, strlen(key));
-
-	//	if(i % 1000 == 0) {
-			printf("sent %d commands\n", i);
-	//	}
-	}
-#endif
 
 	return 0;
 }
