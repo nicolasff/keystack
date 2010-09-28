@@ -6,7 +6,7 @@
 #include <string.h>
 #include <stdio.h>
 
-#define THRESHOLD_MAX_COUNT	10000
+#define THRESHOLD_MAX_COUNT	10
 
 struct server *
 server_new() {
@@ -58,7 +58,7 @@ server_set(struct server *s, struct client *c) {
 	dict_set(s->d, c->key, c->key_sz, str, c->val_sz);
 	cmd_reply(c, REPLY_BOOL, 1);
 
-	if(0 && dict_count(s->d) >= THRESHOLD_MAX_COUNT) { /* TODO: use a proper condition */
+	if(dict_count(s->d) >= THRESHOLD_MAX_COUNT) { /* TODO: use a proper condition */
 		server_split(s);
 	}
 }

@@ -123,10 +123,10 @@ on_possible_write(int fd, short event, void *ptr) {
 	char c;
 	char key[50], val[50];
 
-	if((*i) > 2) {
-		//return;
+	if(!(*i)) {
+		return;
 	}
-	(*i)++;
+	(*i)--;
 	sprintf(key, "key-%d", *i);
 	sprintf(val, "val-%d", *i);
 
@@ -141,7 +141,7 @@ on_possible_write(int fd, short event, void *ptr) {
 int
 main() {
 
-	int fd, ret, i = 0;
+	int fd, ret, n = 15;
 	struct sockaddr_in addr;
 	struct client c;
 	struct event ev_r, ev_w;
@@ -164,7 +164,7 @@ main() {
 	event_base_set(base, &ev_r);
 	event_add(&ev_r, NULL);
 
-	event_set(&ev_w, fd, EV_WRITE | EV_PERSIST, on_possible_write, &i);
+	event_set(&ev_w, fd, EV_WRITE | EV_PERSIST, on_possible_write, &n);
 	event_base_set(base, &ev_w);
 	event_add(&ev_w, NULL);
 
