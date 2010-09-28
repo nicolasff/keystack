@@ -1,6 +1,8 @@
 #ifndef BTREE_H
 #define BTREE_H
 
+#include <arpa/inet.h>
+
 struct bt_node;
 
 struct bt_entry {
@@ -15,9 +17,19 @@ struct bt_node {
 	int n;
 
 	int leaf;
+	long id;
 
 	struct bt_entry *entries;
 	struct bt_node **children;
+};
+
+struct queue_item {
+	struct bt_node *b;
+	struct queue_item *next;
+};
+struct queue {
+	struct queue_item *head;
+	struct queue_item *tail;
 };
 
 struct bt_node *
@@ -46,5 +58,8 @@ bt_load(const char *filename);
 
 void
 tree_dot(struct bt_node *b);
+
+uint32_t
+bt_save_to_mmap(struct bt_node *b, char *p, uint32_t *off, uint32_t *self_size);
 
 #endif

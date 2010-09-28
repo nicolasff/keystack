@@ -10,7 +10,7 @@ main() {
 	struct bt_node *root;
 	int i, n;
 
-	root = bt_node_new(251);
+	root = bt_node_new(5);
 #if 0
 	n = 20;
 	/*
@@ -33,7 +33,8 @@ main() {
 	return 0;
 #endif
 
-	n = 1000*1000;
+	n = 10*1000;
+	n = 20;
 #if 1
 	struct timespec t0, t1, t2, t3, t4;
 
@@ -56,9 +57,11 @@ main() {
 	clock_gettime(CLOCK_MONOTONIC, &t2);
 	bt_free(root);
 	printf("saved.\n");
-	root = bt_load("/tmp/large.bin");
-	clock_gettime(CLOCK_MONOTONIC, &t3);
-	printf("loaded.\n");
+	return 0;
+//	root = bt_load("/tmp/large.bin");
+//	clock_gettime(CLOCK_MONOTONIC, &t3);
+//	printf("loaded.\n");
+	bt_dump(root);
 
 	for(i = 1; i < n; i++) {
 		char *key = calloc(20, 1);

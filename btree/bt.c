@@ -11,7 +11,7 @@
 #include "bt.h"
 
 static int
-safe_strcmp(char *s0, size_t sz0, char *s1, size_t sz1, int debug) {
+safe_strcmp(char *s0, size_t sz0, char *s1, size_t sz1) {
 
 	int ret;
 
@@ -23,10 +23,6 @@ safe_strcmp(char *s0, size_t sz0, char *s1, size_t sz1, int debug) {
 		ret = memcmp(s0, s1, sz0);
 	} else {
 		ret = -1;
-	}
-
-	if(debug) {
-		printf("memcmp[%s][%zd] [%s][%zd]: %d\n", s0, sz0, s1, sz1, ret);
 	}
 
 	return ret;
@@ -65,13 +61,11 @@ bt_lookup(struct bt_node *b, char *k, size_t sz) {
 	
 	int i;
 
-	//printf("lookup with k=%s, sz=%zd\n", k, sz);
 	for(i = 0; i <= b->n; ++i) {
-		int cmp;
+		int cmp = 0;
 		if(i != b->n) {
-			cmp = safe_strcmp(k, sz, b->entries[i].key, b->entries[i].key_size, 0);
+			cmp = safe_strcmp(k, sz, b->entries[i].key, b->entries[i].key_size);
 		}
-	//	printf("k=[%s], @i=[%s], cmp=%d\n", k, b->entries[i].key, cmp);
 		if(i != b->n && cmp == 0) { /* found */
 			return b->entries + i;
 		}
@@ -124,7 +118,7 @@ bt_insert_nonfull(struct bt_node *x, char *k, size_t sz, int v) {
 
 	if(x->leaf) { // leaf
 		while(i >= 0 && safe_strcmp(k, sz,
-				x->entries[i].key, x->entries[i].key_size, 0) < 0) {
+				x->entries[i].key, x->entries[i].key_size) < 0) {
 			x->entries[i+1] = x->entries[i];
 			i--;
 		}
@@ -134,7 +128,7 @@ bt_insert_nonfull(struct bt_node *x, char *k, size_t sz, int v) {
 		x->n++;
 	} else {
 		while(i >= 0 && safe_strcmp(k, sz,
-				x->entries[i].key, x->entries[i].key_size, 0) < 0) {
+				x->entries[i].key, x->entries[i].key_size) < 0) {
 			i--;
 		}
 		i++;
@@ -142,7 +136,7 @@ bt_insert_nonfull(struct bt_node *x, char *k, size_t sz, int v) {
 		if(x->children[i]->n == x->width) {
 			bt_split_child(x, i, x->children[i]);
 			if(safe_strcmp(k, sz,
-				x->entries[i].key, x->entries[i].key_size, 0) > 0) {
+				x->entries[i].key, x->entries[i].key_size) > 0) {
 				i++;
 			}
 		}
@@ -166,7 +160,7 @@ bt_insert(struct bt_node *r, char *k, size_t sz, int v) {
 }
 		
 
-#if 1
+#if 0
 static void*
 bt_write_block(void *p, struct bt_node *b, uint32_t id, uint32_t *maxid) {
 
@@ -243,10 +237,9 @@ bt_compute_size(struct bt_node *b, uint32_t *count) {
 
 	int i;
 	(*count)++;	/* count current node */
-	long sz = sizeof(uint32_t) /* id */
-			+ 1 /* n */
-			+ b->width * sizeof(uint32_t) * 2
-			+ (b->width + 1) * sizeof(uint32_t);
+	long sz =  1 /* n */
+		+ b->width * sizeof(uint32_t) * 2 /* key and value sizes */
+		+ (b->width + 1) * sizeof(uint32_t); /* children offsets */
 
 	for(i = 0; i <= b->n; i++) {
 		if(i < b->n && b->entries[i].key_size != 0) {
@@ -263,9 +256,9 @@ int
 bt_save(struct bt_node *b, const char *filename) {
 
 	int fd, ret;
-	uint32_t count = 0, maxid = 2, w = b->width;
+	uint32_t count = 0, w = b->width;
+	uint32_t delta = sizeof(uint32_t) * 3, root_sz, root_offset;
 	long filesize, pagesize;
-	int delta = sizeof(uint32_t) * 2;
 	void *ptr;
 
 	unlink(filename);
@@ -288,13 +281,17 @@ bt_save(struct bt_node *b, const char *filename) {
 
 	/* mmap, write, munmap */
 	ptr = mmap(NULL, filesize, PROT_WRITE, MAP_SHARED | MAP_POPULATE, fd, 0);
-	bt_write_block(ptr + delta, b, 1, &maxid);
+	bt_save_to_mmap(b, ptr, &delta, &root_sz);
+	root_offset = delta - root_sz;
 
 	count = htonl(count); /* save number of nodes */
 	memcpy(ptr, &count, sizeof(uint32_t));
 
 	w = htonl(w); /* save width of nodes. */
 	memcpy(ptr + sizeof(uint32_t), &w, sizeof(uint32_t));
+
+	root_offset = htonl(root_offset); /* save offset of root node. */
+	memcpy(ptr + 2 * sizeof(uint32_t), &root_offset, sizeof(uint32_t));
 
 	munmap(ptr, filesize);
 	close(fd);
@@ -396,7 +393,6 @@ bt_load(const char *filename) {
 	return nodes;
 }
 
-#if 1
 void
 bt_dump_(struct bt_node *b, int indent) {
 
@@ -416,10 +412,10 @@ bt_dump_(struct bt_node *b, int indent) {
 		}
 
 		if(b->entries[i].key) {
-			//printf("%2d", b->entries[i].key);
 			printf("(%zd) ", b->entries[i].key_size);
 			fflush(stdout);
-			write(1, b->entries[i].key, b->entries[i].key_size);
+			int ret = write(1, b->entries[i].key, b->entries[i].key_size);
+			(void)ret;
 			printf(" [v=%d]", b->entries[i].value);
 		}
 	}
@@ -441,5 +437,82 @@ bt_dump(struct bt_node *b) {
 
 	bt_dump_(b, 0);
 }
-#endif
+
+
+/* btree save */
+
+static uint32_t
+bt_dump_block(struct bt_node *b, char *p, uint32_t *offsets) {
+
+	char *p_start = p;
+
+	/* write block size */
+	uint8_t block_sz = b->n;
+	memcpy(p, &block_sz, 1);
+	p++;
+	
+	/* write block entries */
+	int i;
+	for(i = 0; i < b->width; i++) {
+		uint32_t k_sz, v;
+		if(i < b->n) {
+			k_sz = htonl(b->entries[i].key_size);
+			v = htonl(b->entries[i].value);
+		} else {
+			k_sz = v = htonl(0);
+		}
+
+		/* write key size */
+		memcpy(p, &k_sz, sizeof(uint32_t));
+		p += sizeof(uint32_t);
+
+		/* write key */
+		if(i < b->n && b->entries[i].key_size != 0) {
+			memcpy(p, b->entries[i].key, b->entries[i].key_size);
+			p += b->entries[i].key_size;
+		}
+
+		/* write value */
+		memcpy(p, &v, sizeof(uint32_t));
+		p += sizeof(uint32_t);
+	}
+
+	/* write block links */
+	for(i = 0; i <= b->width; i++) {
+		uint32_t c;
+		if(i <= b-> n && b->children[i]) {
+			c = htonl(offsets[i]);
+		} else {
+			c = htonl(0);
+		}
+		memcpy(p, &c, sizeof(uint32_t));
+		p += sizeof(uint32_t);
+	}
+
+	return p - p_start;
+}
+
+uint32_t
+bt_save_to_mmap(struct bt_node *b, char *p, uint32_t *off, uint32_t *self_size) {
+
+	/* write children first, and record their offsets */
+
+	uint32_t *offsets = calloc(sizeof(uint32_t), 1+b->n);
+	int i;
+	for(i = 0; i <= b->n; i++) {
+		if(b->children[i]) {
+			offsets[i] = bt_save_to_mmap(b->children[i], p, off, self_size);
+		} else {
+			offsets[i] = 0;
+		}
+	}
+
+	*self_size = bt_dump_block(b, p + *off, offsets);
+	free(offsets);
+	
+	printf("writing %p (id=%ld) at offset %d\n", b, b->id, (int)*off);
+	(*off) += *self_size;
+
+	return *off;
+}
 
