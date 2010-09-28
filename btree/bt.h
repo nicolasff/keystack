@@ -23,15 +23,6 @@ struct bt_node {
 	struct bt_node **children;
 };
 
-struct queue_item {
-	struct bt_node *b;
-	struct queue_item *next;
-};
-struct queue {
-	struct queue_item *head;
-	struct queue_item *tail;
-};
-
 struct bt_node *
 bt_node_new(int width);
 
