@@ -10,7 +10,7 @@ main() {
 	struct bt_node *root;
 	int i, n;
 
-	root = bt_node_new(5);
+	root = bt_node_new(651);
 #if 0
 	n = 20;
 	/*
@@ -33,8 +33,8 @@ main() {
 	return 0;
 #endif
 
-	n = 10*1000;
-	n = 20;
+	n = 1000*1000;
+	//n = 20;
 #if 1
 	struct timespec t0, t1, t2, t3, t4;
 
@@ -55,8 +55,18 @@ main() {
 	printf("saving index of %d elements.\n", n);
 	bt_save(root, "/tmp/large.bin");
 	clock_gettime(CLOCK_MONOTONIC, &t2);
+//	bt_dump(root);
 	bt_free(root);
 	printf("saved.\n");
+	int v;
+	char *key = malloc(40);
+	sprintf(key, "key-%d", 1 + (rand() % (n-1)));
+
+	if(0 == bt_find("/tmp/large.bin", key, strlen(key), &v)) {
+		printf("%s: val=%d\n", key, v);
+	} else {
+		printf("could not find %s\n", key);
+	}
 	return 0;
 //	root = bt_load("/tmp/large.bin");
 //	clock_gettime(CLOCK_MONOTONIC, &t3);

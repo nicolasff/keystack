@@ -9,9 +9,10 @@
 #include <unistd.h>
 
 #include "bt.h"
+#define BT_HEADER_SIZE	(sizeof(uint32_t) * 3 + sizeof(uint16_t))
 
 static int
-safe_strcmp(char *s0, size_t sz0, char *s1, size_t sz1) {
+safe_strcmp(const char *s0, size_t sz0, const char *s1, size_t sz1) {
 
 	int ret;
 
@@ -172,7 +173,7 @@ bt_write_block(void *p, struct bt_node *b, uint32_t id, uint32_t *maxid) {
 	p += sizeof(uint32_t);
 
 	/* write block size */
-	uint8_t block_sz = b->n;
+	uint16_t block_sz = b->n;
 	memcpy(p, &block_sz, 1);
 	p++;
 	
@@ -237,9 +238,10 @@ bt_compute_size(struct bt_node *b, uint32_t *count) {
 
 	int i;
 	(*count)++;	/* count current node */
-	long sz =  1 /* n */
+	long sz =  sizeof(uint16_t) /* n */
 		+ b->width * sizeof(uint32_t) * 2 /* key and value sizes */
-		+ (b->width + 1) * sizeof(uint32_t); /* children offsets */
+		+ (b->width + 1) * sizeof(uint32_t) /* children offsets */
+		+ (b->width + 1) * sizeof(uint16_t); /* children sizes */
 
 	for(i = 0; i <= b->n; i++) {
 		if(i < b->n && b->entries[i].key_size != 0) {
@@ -257,7 +259,8 @@ bt_save(struct bt_node *b, const char *filename) {
 
 	int fd, ret;
 	uint32_t count = 0, w = b->width;
-	uint32_t delta = sizeof(uint32_t) * 3, root_sz, root_offset;
+	uint32_t delta = BT_HEADER_SIZE, root_offset;
+	uint16_t root_size;
 	long filesize, pagesize;
 	void *ptr;
 
@@ -268,7 +271,7 @@ bt_save(struct bt_node *b, const char *filename) {
 	}
 
 	/* count nodes */
-	filesize = bt_compute_size(b, &count) + 2 * sizeof(uint32_t);
+	filesize = BT_HEADER_SIZE + bt_compute_size(b, &count);
 
 	/* compute file size */
 	pagesize = sysconf(_SC_PAGE_SIZE);
@@ -281,8 +284,8 @@ bt_save(struct bt_node *b, const char *filename) {
 
 	/* mmap, write, munmap */
 	ptr = mmap(NULL, filesize, PROT_WRITE, MAP_SHARED | MAP_POPULATE, fd, 0);
-	bt_save_to_mmap(b, ptr, &delta, &root_sz);
-	root_offset = delta - root_sz;
+	bt_save_to_mmap(b, ptr, &delta, &root_size);
+	root_offset = delta - root_size;
 
 	count = htonl(count); /* save number of nodes */
 	memcpy(ptr, &count, sizeof(uint32_t));
@@ -292,6 +295,9 @@ bt_save(struct bt_node *b, const char *filename) {
 
 	root_offset = htonl(root_offset); /* save offset of root node. */
 	memcpy(ptr + 2 * sizeof(uint32_t), &root_offset, sizeof(uint32_t));
+
+	root_size = htons(root_size); /* save size of root node. */
+	memcpy(ptr + 3 * sizeof(uint32_t), &root_size, sizeof(uint16_t));
 
 	munmap(ptr, filesize);
 	close(fd);
@@ -337,7 +343,7 @@ bt_load(const char *filename) {
 	for(i = 0; i < count; ++i) {
 
 		uint32_t id, k_sz, v, c;
-		uint8_t n;
+		uint16_t n;
 		memcpy(&id, ptr, sizeof(uint32_t));
 		ptr += sizeof(uint32_t);
 		id = ntohl(id);
@@ -442,32 +448,28 @@ bt_dump(struct bt_node *b) {
 /* btree save */
 
 static uint32_t
-bt_dump_block(struct bt_node *b, char *p, uint32_t *offsets) {
+bt_dump_block(struct bt_node *b, char *p, uint32_t *offsets, uint16_t *sizes) {
 
 	char *p_start = p;
 
 	/* write block size */
-	uint8_t block_sz = b->n;
-	memcpy(p, &block_sz, 1);
-	p++;
+	uint16_t block_sz = htons(b->n);
+	memcpy(p, &block_sz, sizeof(uint16_t));
+	p += sizeof(uint16_t);
 	
 	/* write block entries */
 	int i;
-	for(i = 0; i < b->width; i++) {
+	for(i = 0; i < b->n; i++) {
 		uint32_t k_sz, v;
-		if(i < b->n) {
-			k_sz = htonl(b->entries[i].key_size);
-			v = htonl(b->entries[i].value);
-		} else {
-			k_sz = v = htonl(0);
-		}
+		k_sz = htonl(b->entries[i].key_size);
+		v = htonl(b->entries[i].value);
 
 		/* write key size */
 		memcpy(p, &k_sz, sizeof(uint32_t));
 		p += sizeof(uint32_t);
 
 		/* write key */
-		if(i < b->n && b->entries[i].key_size != 0) {
+		if(b->entries[i].key_size != 0) {
 			memcpy(p, b->entries[i].key, b->entries[i].key_size);
 			p += b->entries[i].key_size;
 		}
@@ -478,41 +480,174 @@ bt_dump_block(struct bt_node *b, char *p, uint32_t *offsets) {
 	}
 
 	/* write block links */
-	for(i = 0; i <= b->width; i++) {
+	for(i = 0; i <= b->n; i++) {
 		uint32_t c;
-		if(i <= b-> n && b->children[i]) {
+		uint16_t c_sz;
+		if(b->children[i]) {
 			c = htonl(offsets[i]);
+			c_sz = htons(sizes[i]);
 		} else {
 			c = htonl(0);
+			c_sz = htons(0);
 		}
 		memcpy(p, &c, sizeof(uint32_t));
 		p += sizeof(uint32_t);
+		memcpy(p, &c_sz, sizeof(uint16_t));
+		p += sizeof(uint16_t);
 	}
 
 	return p - p_start;
 }
 
 uint32_t
-bt_save_to_mmap(struct bt_node *b, char *p, uint32_t *off, uint32_t *self_size) {
+bt_save_to_mmap(struct bt_node *b, char *p, uint32_t *off, uint16_t *self_size) {
 
 	/* write children first, and record their offsets */
 
 	uint32_t *offsets = calloc(sizeof(uint32_t), 1+b->n);
+	uint16_t *sizes = calloc(sizeof(uint16_t), 1+b->n);
 	int i;
+	uint32_t ret;
 	for(i = 0; i <= b->n; i++) {
 		if(b->children[i]) {
-			offsets[i] = bt_save_to_mmap(b->children[i], p, off, self_size);
+			uint16_t child_size;
+			offsets[i] = bt_save_to_mmap(b->children[i], p, off, &child_size);
+			sizes[i] = child_size;
+			//printf("%p: child %d: offset=%d, size=%d\n", b, i, (int)offsets[i], (int)sizes[i]);
 		} else {
 			offsets[i] = 0;
+			sizes[i] = 0;
 		}
 	}
 
-	*self_size = bt_dump_block(b, p + *off, offsets);
+	*self_size = bt_dump_block(b, p + *off, offsets, sizes);
 	free(offsets);
 	
-	printf("writing %p (id=%ld) at offset %d\n", b, b->id, (int)*off);
+	ret = *off;
+	//printf("writing %p at offset %d\n", b, (int)*off);
 	(*off) += *self_size;
 
-	return *off;
+	return ret;
+}
+
+struct bt_node_static *
+bt_load_at_offset(int fd, uint32_t offset, uint16_t sz) {
+
+	int i;
+
+	printf("loading %d bytes from offset %d\n", (int)sz, (int)offset);
+
+	struct bt_node_static *b = calloc(sizeof(struct bt_node_static), 1);
+
+	b->buffer = calloc(sz, 1);
+	lseek(fd, offset, SEEK_SET);
+	read(fd, b->buffer, sz);	/* read block */
+
+	memcpy(&b->n, b->buffer, sizeof(uint16_t));	/* get block size */
+	b->n = ntohs(b->n);
+
+	b->entries = calloc(b->n, sizeof(struct bt_entry));
+	b->children_offsets = calloc(1+b->n, sizeof(uint32_t));
+	b->children_sizes = calloc(1+b->n, sizeof(uint16_t));
+
+	char *p = b->buffer + sizeof(uint16_t);
+
+	/* read keys & values */
+	for(i = 0; i < b->n; i++) {
+
+		/* key size */
+		memcpy(&b->entries[i].key_size, p, sizeof(uint32_t));
+		p += sizeof(uint32_t);
+		b->entries[i].key_size = ntohl(b->entries[i].key_size);
+
+		/* key */
+		b->entries[i].key = p;
+		p += b->entries[i].key_size;
+
+		/* value */
+		memcpy(&b->entries[i].value, p, sizeof(uint32_t));
+		p += sizeof(uint32_t);
+		b->entries[i].value = ntohl(b->entries[i].value);
+	}
+
+	/* read children offsets and sizes */
+	for(i = 0; i <= b->n; i++) {
+		memcpy(&b->children_offsets[i], p, sizeof(uint32_t));
+		p += sizeof(uint32_t);
+		b->children_offsets[i] = ntohl(b->children_offsets[i]);
+
+		memcpy(&b->children_sizes[i], p, sizeof(uint16_t));
+		p += sizeof(uint16_t);
+		b->children_sizes[i] = ntohs(b->children_sizes[i]);
+	}
+
+	return b;
+}
+
+void
+bt_static_free(struct bt_node_static *bs) {
+	free(bs->entries);
+	free(bs->children_offsets);
+	free(bs->children_sizes);
+	free(bs->buffer);
+	free(bs);
+}
+
+int
+bt_find_on_disk(int fd, uint32_t offset, uint16_t size, const char *key, uint16_t key_sz, int *out) {
+
+	/* look up in that node */
+	
+	int i;
+
+	struct bt_node_static *bs = bt_load_at_offset(fd, offset, size);
+//	printf("bs->n = %d\n", (int)bs->n);
+	for(i = 0; i <= bs->n; ++i) {
+		int cmp = 0;
+		if(i != bs->n) {
+			cmp = safe_strcmp(key, key_sz,
+				bs->entries[i].key, bs->entries[i].key_size);
+		}
+		if(i != bs->n && cmp == 0) { /* found */
+			if(out) {
+				*out = bs->entries[i].value;
+			}
+			bt_static_free(bs);
+			return 0;
+		}
+
+		if((i == bs->n || cmp < 0) && bs->children_offsets[i]) { /* there is more */
+			return bt_find_on_disk(fd,
+					bs->children_offsets[i], bs->children_sizes[i],
+					key, key_sz, out);
+		}
+	}
+	bt_static_free(bs);
+	// printf("not found\n");
+	return -1;
+}
+
+int
+bt_find(const char *filename, const char *key, uint16_t key_sz, int *out) {
+
+	int fd, ret;
+
+	char header[BT_HEADER_SIZE];
+	uint32_t root_offset;
+	uint16_t root_size;
+
+	fd = open(filename, O_RDONLY);
+	ret = read(fd, header, sizeof(header));
+
+	/* get root position */
+	memcpy(&root_offset, header + 2 * sizeof(uint32_t), sizeof(uint32_t));
+	memcpy(&root_size, header + 3 * sizeof(uint32_t), sizeof(uint16_t));
+	root_offset = htonl(root_offset);
+	root_size = htons(root_size);
+
+	ret = bt_find_on_disk(fd, root_offset, root_size, key, key_sz, out);
+
+	close(fd);
+	return ret;
 }
 
