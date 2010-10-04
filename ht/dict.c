@@ -353,7 +353,25 @@ dict_count(struct dict *d) {
 	if(d->ht_old) {
 		l += d->ht_old->count;
 	}
-	printf("total count: %ld\n", l);
+/*	printf("total count: %ld\n", l);	*/
+	return l;
+}
+
+long
+dict_total_key_len(struct dict *d) {
+	long l = d->ht->total_key_len;
+	if(d->ht_old) {
+		l += d->ht_old->total_key_len;
+	}
+	return l;
+}
+
+long
+dict_total_val_len(struct dict *d) {
+	long l = d->ht->total_val_len;
+	if(d->ht_old) {
+		l += d->ht_old->total_val_len;
+	}
 	return l;
 }
 

@@ -68,4 +68,9 @@ dict_foreach(struct dict *d, foreach_cb fun, void *data);
 long
 dict_count(struct dict *d);
 
+long
+dict_total_key_len(struct dict *d);
+
+long
+dict_total_val_len(struct dict *d);
 #endif /* DICT_H */

@@ -23,8 +23,6 @@ dump_item(char *k, size_t k_sz, char *v, size_t v_sz, void *ctx) {
 	int pos = di->pos;
 	uint32_t sz;
 
-	printf("dumping item [%s] -> [%s]\n", k, v);
-
 	/* key size */
 	sz = htonl(k_sz);
 	memcpy(di->ptr + di->pos, &sz, sizeof(uint32_t));
@@ -54,10 +52,11 @@ dump_thread_main(void *ptr) {
 	int fd;
 
 	printf("Dumping to [%s]\n", di->db_name);
+	printf("Dump: count=%ld, total_key_len=%ld, total_val_len=%ld\n", dict_count(di->d), dict_total_key_len(di->d), dict_total_val_len(di->d));
 
 	/* compute file size */
-	filesize = sizeof(size_t) * 2 * di->d->ht->count
-		+ di->d->ht->total_key_len + di->d->ht->total_val_len;
+	filesize = sizeof(uint32_t) * 2 * dict_count(di->d)
+		+ dict_total_key_len(di->d) + dict_total_val_len(di->d);
 	printf("filesize=%ld\n", filesize);
 	pagesize = sysconf(_SC_PAGE_SIZE);
 	if(filesize % pagesize) {

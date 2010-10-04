@@ -6,7 +6,7 @@
 #include <string.h>
 #include <stdio.h>
 
-#define THRESHOLD_MAX_COUNT	10
+#define THRESHOLD_MAX_COUNT	100000
 
 struct server *
 server_new() {
@@ -33,7 +33,7 @@ server_get(struct server *s, struct client *c) {
 			//printf("check in other table.\n");
 			str = dict_get(s->d_old, c->key, c->key_sz, &sz);
 		} else {
-			//printf("disk lookup.\n");
+			printf("disk lookup.\n");
 			/* TODO: disk lookup */
 		}
 	}
