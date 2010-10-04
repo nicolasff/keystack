@@ -1,2 +1,1 @@
 * Read from DB file if the key isn’t found in memory.
-* Change benchmark to perform either only writes, only reads, or both in succession.

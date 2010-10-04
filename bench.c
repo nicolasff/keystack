@@ -8,6 +8,9 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 
+#define	BENCH_READ	1
+#define	BENCH_WRITE	2
+
 struct client {
 
 	int fd;
@@ -16,6 +19,9 @@ struct client {
 	char *buffer;
 	size_t got;
 	size_t remain;
+
+	int actions;
+	int i;
 };
 
 void
@@ -119,24 +125,27 @@ on_possible_read(int fd, short event, void *ptr) {
 void
 on_possible_write(int fd, short event, void *ptr) {
 
-	int *i = ptr;
-	char c;
+	struct client *c= ptr;
 	char key[50], val[50];
 
-	(*i)++;
-	sprintf(key, "key-%d", *i);
-	sprintf(val, "val-%d", *i);
+	c->i++;
+	sprintf(key, "key-%d", c->i);
+	sprintf(val, "val-%d", c->i);
 
-	set(fd, key, strlen(key), val, strlen(val));
-	get(fd, key, strlen(key));
+	if(c->actions & BENCH_WRITE) {
+		set(fd, key, strlen(key), val, strlen(val));
+	}
+	if(c->actions & BENCH_READ) {
+		get(fd, key, strlen(key));
+	}
 
-	if((*i) % 1000 == 0) {
-		printf("sent %d commands\n", *i);
+	if(c->i % 1000 == 0) {
+		printf("sent %d commands\n", c->i);
 	}
 }
 
 int
-main() {
+main(int argc, char *argv[]) {
 
 	int fd, ret, n = 0;
 	struct sockaddr_in addr;
@@ -144,10 +153,26 @@ main() {
 	struct event ev_r, ev_w;
 	struct event_base *base = event_base_new();
 
+	if(argc != 2) {
+		fprintf(stderr, "Usage: %s [rw]\n", argv[0]);
+		return EXIT_FAILURE;
+
+	}
+
 	c.msg_sz = -1;
 	c.buffer = malloc(4);
 	c.got = 0;
 	c.remain = 4;
+	c.actions = 0;
+	c.i = 0;
+
+	if(strchr(argv[1], 'r') != NULL) {
+		c.actions |= BENCH_READ;
+	}
+	if(strchr(argv[1], 'w') != NULL) {
+		c.actions |= BENCH_WRITE;
+	}
+
 
 	fd = socket(AF_INET, SOCK_STREAM, 0);
 	addr.sin_family = AF_INET;
@@ -161,9 +186,10 @@ main() {
 	event_base_set(base, &ev_r);
 	event_add(&ev_r, NULL);
 
-	event_set(&ev_w, fd, EV_WRITE | EV_PERSIST, on_possible_write, &n);
+	event_set(&ev_w, fd, EV_WRITE | EV_PERSIST, on_possible_write, &c);
 	event_base_set(base, &ev_w);
 	event_add(&ev_w, NULL);
+	
 
 	event_base_loop(base, 0);
 
