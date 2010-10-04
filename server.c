@@ -5,6 +5,9 @@
 
 #include <string.h>
 #include <stdio.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 
 #define THRESHOLD_MAX_COUNT	100000
 
@@ -20,6 +23,43 @@ server_new() {
 	return s;
 }
 
+/* TODO: disk lookup */
+static void
+server_get_from_disk(struct server *s, struct client *c) {
+	int i;
+	char *buffer;
+
+	for(i = s->dump_count; i >= 0; --i) {
+		char filename[100];
+		uint32_t offset = (uint32_t)-1;
+		uint32_t size = (uint32_t)-1;
+
+		sprintf(filename, "/tmp/kv-%d.index", i);
+		int ret = bt_find(filename, c->key, c->key_sz, &offset, &size);
+	//	printf("in %d.index: ret=%d, pos=%d, sz=%d\n", i, ret, pos, sz);
+
+		if(ret == 0) { /* found */
+			int fd;
+			sprintf(filename, "/tmp/kv-%d.db", i);
+			fd = open(filename, O_RDONLY);
+			
+			lseek(fd, offset, SEEK_SET); /* seek in file */
+
+			/* read block */
+			buffer = malloc(size);
+			read(fd, buffer, size);
+			close(fd);
+
+			/* send reply */
+			cmd_reply(c, REPLY_STRING, buffer, size);
+
+			free(buffer);
+			return;
+		}
+	}
+	cmd_reply(c, REPLY_BOOL, 0);
+}
+
 void
 server_get(struct server *s, struct client *c) {
 
@@ -33,8 +73,8 @@ server_get(struct server *s, struct client *c) {
 			//printf("check in other table.\n");
 			str = dict_get(s->d_old, c->key, c->key_sz, &sz);
 		} else {
-			printf("disk lookup.\n");
-			/* TODO: disk lookup */
+			server_get_from_disk(s, c);
+			return;
 		}
 	}
 
@@ -58,7 +98,7 @@ server_set(struct server *s, struct client *c) {
 	dict_set(s->d, c->key, c->key_sz, str, c->val_sz);
 	cmd_reply(c, REPLY_BOOL, 1);
 
-	if(dict_count(s->d) >= THRESHOLD_MAX_COUNT) { /* TODO: use a proper condition */
+	if(dict_count(s->d) >= THRESHOLD_MAX_COUNT && s->state == IDLE) {
 		server_split(s);
 	}
 }

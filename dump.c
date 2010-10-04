@@ -14,7 +14,7 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 
-#define BTREE_INDEX_WIDTH	151
+#define BTREE_INDEX_WIDTH	1801
 
 static void
 dump_item(char *k, size_t k_sz, char *v, size_t v_sz, void *ctx) { 
@@ -41,7 +41,7 @@ dump_item(char *k, size_t k_sz, char *v, size_t v_sz, void *ctx) {
 	memcpy(di->ptr + di->pos, v, v_sz);
 	di->pos += v_sz;
 
-	di->index = bt_insert(di->index, k, k_sz, pos);
+	di->index = bt_insert(di->index, k, k_sz, pos, di->pos - pos);
 }
 
 void *

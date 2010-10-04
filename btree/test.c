@@ -44,11 +44,11 @@ main() {
 		struct bt_entry *e;
 		char *key = calloc(20, 1);
 		sprintf(key, "key-%d", i);
-		root = bt_insert(root, key, strlen(key), i+1);
+		root = bt_insert(root, key, strlen(key), i+1, 0);
 		continue;
 		e = bt_lookup(root, key, strlen(key)); /* immediate read-back */
-		if(e && e->value != i+1) {
-			printf("at k=[%d]: %d\n", i, e->value);
+		if(e && e->value_offset != (uint32_t)i+1) {
+			printf("at k=[%d]: %d\n", i, e->value_offset);
 		}
 	}
 	clock_gettime(CLOCK_MONOTONIC, &t1);
@@ -58,12 +58,12 @@ main() {
 //	bt_dump(root);
 	bt_free(root);
 	printf("saved.\n");
-	int v;
+	uint32_t offset, size;
 	char *key = malloc(40);
 	sprintf(key, "key-%d", 1 + (rand() % (n-1)));
 
-	if(0 == bt_find("/tmp/large.bin", key, strlen(key), &v)) {
-		printf("%s: val=%d\n", key, v);
+	if(0 == bt_find("/tmp/large.bin", key, strlen(key), &offset, &size)) {
+		printf("%s: offset=%d, size=%d\n", key, (int)offset, (int)size);
 	} else {
 		printf("could not find %s\n", key);
 	}
@@ -79,8 +79,8 @@ main() {
 		struct bt_entry *e = bt_lookup(root, key, strlen(key)); /* read-back after the whole insertion */
 		if(!e) {
 			printf("e=nil.\n");
-		} else if(e->value != i+1) {
-			printf("at k=[%d]: %d\n", i, e->value);
+		} else if(e->value_offset != (uint32_t)i+1) {
+			printf("at k=[%d]: %d\n", i, e->value_offset);
 		}
 	}
 	clock_gettime(CLOCK_MONOTONIC, &t4);

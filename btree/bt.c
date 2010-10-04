@@ -113,7 +113,7 @@ bt_split_child(struct bt_node *x, int i, struct bt_node *y) {
 }
 
 void
-bt_insert_nonfull(struct bt_node *x, char *k, size_t sz, int v) {
+bt_insert_nonfull(struct bt_node *x, char *k, size_t sz, uint32_t offset, uint32_t size) {
 
 	int i = x->n - 1;
 
@@ -125,7 +125,8 @@ bt_insert_nonfull(struct bt_node *x, char *k, size_t sz, int v) {
 		}
 		x->entries[i+1].key = k;
 		x->entries[i+1].key_size = sz;
-		x->entries[i+1].value = v;
+		x->entries[i+1].value_offset = offset;
+		x->entries[i+1].value_size = size;
 		x->n++;
 	} else {
 		while(i >= 0 && safe_strcmp(k, sz,
@@ -141,21 +142,21 @@ bt_insert_nonfull(struct bt_node *x, char *k, size_t sz, int v) {
 				i++;
 			}
 		}
-		bt_insert_nonfull(x->children[i], k, sz, v);
+		bt_insert_nonfull(x->children[i], k, sz, offset, size);
 	}
 }
 
 struct bt_node *
-bt_insert(struct bt_node *r, char *k, size_t sz, int v) {
+bt_insert(struct bt_node *r, char *k, size_t sz, uint32_t offset, uint32_t size) {
 	if(r->n == r->width) {
 		struct bt_node *s = bt_node_new(r->width);
 		s->children[0] = r;
 		s->leaf = 0;
 		bt_split_child(s, 0, r);
-		bt_insert_nonfull(s, k, sz, v);
+		bt_insert_nonfull(s, k, sz, offset, size);
 		return s;
 	} else {
-		bt_insert_nonfull(r, k, sz, v);
+		bt_insert_nonfull(r, k, sz, offset, size);
 		return r;
 	}
 }
@@ -239,7 +240,7 @@ bt_compute_size(struct bt_node *b, uint32_t *count) {
 	int i;
 	(*count)++;	/* count current node */
 	long sz =  sizeof(uint16_t) /* n */
-		+ b->width * sizeof(uint32_t) * 2 /* key and value sizes */
+		+ b->width * sizeof(uint32_t) * 3 /* key and value sizes */
 		+ (b->width + 1) * sizeof(uint32_t) /* children offsets */
 		+ (b->width + 1) * sizeof(uint16_t); /* children sizes */
 
@@ -304,7 +305,7 @@ bt_save(struct bt_node *b, const char *filename) {
 	chmod(filename, 0660);
 	return 0;
 }
-
+#if 0
 struct bt_node *
 bt_load(const char *filename) {
 
@@ -337,7 +338,7 @@ bt_load(const char *filename) {
 	ptr += sizeof(uint32_t);
 	w = ntohl(w);
 
-	printf("loading %ld nodes of width %d\n", count, (int)w);
+	// printf("loading %ld nodes of width %d\n", count, (int)w);
 	nodes = calloc((size_t)count, sizeof(struct bt_node));
 
 	for(i = 0; i < count; ++i) {
@@ -376,7 +377,7 @@ bt_load(const char *filename) {
 			}
 
 			b->entries[j].key_size = k_sz;
-			b->entries[j].value = v;
+			b->entries[j].value_offset = v;
 
 		}
 
@@ -398,6 +399,7 @@ bt_load(const char *filename) {
 
 	return nodes;
 }
+#endif
 
 void
 bt_dump_(struct bt_node *b, int indent) {
@@ -422,7 +424,8 @@ bt_dump_(struct bt_node *b, int indent) {
 			fflush(stdout);
 			int ret = write(1, b->entries[i].key, b->entries[i].key_size);
 			(void)ret;
-			printf(" [v=%d]", b->entries[i].value);
+			printf(" [v=%d, sz=%d]", b->entries[i].value_offset, 
+					b->entries[i].value_size);
 		}
 	}
 	printf("]\n");
@@ -460,9 +463,10 @@ bt_dump_block(struct bt_node *b, char *p, uint32_t *offsets, uint16_t *sizes) {
 	/* write block entries */
 	int i;
 	for(i = 0; i < b->n; i++) {
-		uint32_t k_sz, v;
+		uint32_t k_sz, v_o, v_sz;
 		k_sz = htonl(b->entries[i].key_size);
-		v = htonl(b->entries[i].value);
+		v_o = htonl(b->entries[i].value_offset);
+		v_sz = htonl(b->entries[i].value_size);
 
 		/* write key size */
 		memcpy(p, &k_sz, sizeof(uint32_t));
@@ -474,8 +478,12 @@ bt_dump_block(struct bt_node *b, char *p, uint32_t *offsets, uint16_t *sizes) {
 			p += b->entries[i].key_size;
 		}
 
-		/* write value */
-		memcpy(p, &v, sizeof(uint32_t));
+		/* write offset */
+		memcpy(p, &v_o, sizeof(uint32_t));
+		p += sizeof(uint32_t);
+
+		/* write size */
+		memcpy(p, &v_sz, sizeof(uint32_t));
 		p += sizeof(uint32_t);
 	}
 
@@ -533,15 +541,15 @@ bt_save_to_mmap(struct bt_node *b, char *p, uint32_t *off, uint16_t *self_size) 
 struct bt_node_static *
 bt_load_at_offset(int fd, uint32_t offset, uint16_t sz) {
 
-	int i;
+	int i, ret;
 
-	printf("loading %d bytes from offset %d\n", (int)sz, (int)offset);
+	// printf("loading %d bytes from offset %d\n", (int)sz, (int)offset);
 
 	struct bt_node_static *b = calloc(sizeof(struct bt_node_static), 1);
 
 	b->buffer = calloc(sz, 1);
 	lseek(fd, offset, SEEK_SET);
-	read(fd, b->buffer, sz);	/* read block */
+	ret = read(fd, b->buffer, sz);	/* read block */
 
 	memcpy(&b->n, b->buffer, sizeof(uint16_t));	/* get block size */
 	b->n = ntohs(b->n);
@@ -564,10 +572,15 @@ bt_load_at_offset(int fd, uint32_t offset, uint16_t sz) {
 		b->entries[i].key = p;
 		p += b->entries[i].key_size;
 
-		/* value */
-		memcpy(&b->entries[i].value, p, sizeof(uint32_t));
+		/* value offset */
+		memcpy(&b->entries[i].value_offset, p, sizeof(uint32_t));
 		p += sizeof(uint32_t);
-		b->entries[i].value = ntohl(b->entries[i].value);
+		b->entries[i].value_offset = ntohl(b->entries[i].value_offset);
+
+		/* value size */
+		memcpy(&b->entries[i].value_size, p, sizeof(uint32_t));
+		p += sizeof(uint32_t);
+		b->entries[i].value_size = ntohl(b->entries[i].value_size);
 	}
 
 	/* read children offsets and sizes */
@@ -594,7 +607,7 @@ bt_static_free(struct bt_node_static *bs) {
 }
 
 int
-bt_find_on_disk(int fd, uint32_t offset, uint16_t size, const char *key, uint16_t key_sz, int *out) {
+bt_find_on_disk(int fd, uint32_t offset, uint16_t size, const char *key, uint16_t key_sz, uint32_t *out_offset, uint32_t *out_size) {
 
 	/* look up in that node */
 	
@@ -609,8 +622,9 @@ bt_find_on_disk(int fd, uint32_t offset, uint16_t size, const char *key, uint16_
 				bs->entries[i].key, bs->entries[i].key_size);
 		}
 		if(i != bs->n && cmp == 0) { /* found */
-			if(out) {
-				*out = bs->entries[i].value;
+			if(out_offset && out_size) {
+				*out_offset = bs->entries[i].value_offset;
+				*out_size = bs->entries[i].value_size;
 			}
 			bt_static_free(bs);
 			return 0;
@@ -619,7 +633,7 @@ bt_find_on_disk(int fd, uint32_t offset, uint16_t size, const char *key, uint16_
 		if((i == bs->n || cmp < 0) && bs->children_offsets[i]) { /* there is more */
 			return bt_find_on_disk(fd,
 					bs->children_offsets[i], bs->children_sizes[i],
-					key, key_sz, out);
+					key, key_sz, out_offset, out_size);
 		}
 	}
 	bt_static_free(bs);
@@ -628,7 +642,7 @@ bt_find_on_disk(int fd, uint32_t offset, uint16_t size, const char *key, uint16_
 }
 
 int
-bt_find(const char *filename, const char *key, uint16_t key_sz, int *out) {
+bt_find(const char *filename, const char *key, uint16_t key_sz, uint32_t *offset, uint32_t *size) {
 
 	int fd, ret;
 
@@ -645,7 +659,7 @@ bt_find(const char *filename, const char *key, uint16_t key_sz, int *out) {
 	root_offset = htonl(root_offset);
 	root_size = htons(root_size);
 
-	ret = bt_find_on_disk(fd, root_offset, root_size, key, key_sz, out);
+	ret = bt_find_on_disk(fd, root_offset, root_size, key, key_sz, offset, size);
 
 	close(fd);
 	return ret;

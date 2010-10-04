@@ -28,7 +28,9 @@ struct bt_node;
 struct bt_entry {
 	char *key;
 	size_t key_size;
-	int value;
+
+	uint32_t value_offset;
+	uint32_t value_size;
 };
 
 struct bt_node {
@@ -58,7 +60,7 @@ void
 bt_free(struct bt_node *);
 
 struct bt_node *
-bt_insert(struct bt_node *r, char *k, size_t sz, int v);
+bt_insert(struct bt_node *r, char *k, size_t sz, uint32_t offset, uint32_t size);
 
 struct bt_entry *
 bt_lookup(struct bt_node *b, char *k, size_t sz);
@@ -82,6 +84,6 @@ uint32_t
 bt_save_to_mmap(struct bt_node *b, char *p, uint32_t *off, uint16_t *self_size);
 
 int
-bt_find(const char *filename, const char *key, uint16_t key_sz, int *out);
+bt_find(const char *filename, const char *key, uint16_t key_sz, uint32_t *offset, uint32_t *size);
 
 #endif
