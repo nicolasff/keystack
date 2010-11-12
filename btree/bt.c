@@ -117,7 +117,7 @@ bt_insert_nonfull(struct bt_node *x, char *k, size_t sz, uint32_t offset, uint32
 
 	int i = x->n - 1;
 
-	if(x->leaf) { // leaf
+	if(x->leaf) { /* leaf */
 		while(i >= 0 && safe_strcmp(k, sz,
 				x->entries[i].key, x->entries[i].key_size) < 0) {
 			x->entries[i+1] = x->entries[i];
@@ -237,9 +237,10 @@ bt_write_block(void *p, struct bt_node *b, uint32_t id, uint32_t *maxid) {
 static long
 bt_compute_size(struct bt_node *b, uint32_t *count) {
 
+	long sz;
 	int i;
 	(*count)++;	/* count current node */
-	long sz =  sizeof(uint16_t) /* n */
+	sz =  sizeof(uint16_t) /* n */
 		+ b->width * sizeof(uint32_t) * 3 /* key and value sizes */
 		+ (b->width + 1) * sizeof(uint32_t) /* children offsets */
 		+ (b->width + 1) * sizeof(uint16_t); /* children sizes */
@@ -263,7 +264,7 @@ bt_save(struct bt_node *b, const char *filename) {
 	uint32_t delta = BT_HEADER_SIZE, root_offset;
 	uint16_t root_size;
 	long filesize, pagesize;
-	void *ptr;
+	char *ptr;
 
 	unlink(filename);
 	fd = open(filename, O_RDWR | O_CREAT, 0660);
@@ -305,6 +306,7 @@ bt_save(struct bt_node *b, const char *filename) {
 	chmod(filename, 0660);
 	return 0;
 }
+
 #if 0
 struct bt_node *
 bt_load(const char *filename) {
@@ -338,7 +340,7 @@ bt_load(const char *filename) {
 	ptr += sizeof(uint32_t);
 	w = ntohl(w);
 
-	// printf("loading %ld nodes of width %d\n", count, (int)w);
+	/* printf("loading %ld nodes of width %d\n", count, (int)w); */
 	nodes = calloc((size_t)count, sizeof(struct bt_node));
 
 	for(i = 0; i < count; ++i) {
@@ -406,7 +408,7 @@ bt_dump_(struct bt_node *b, int indent) {
 
 	int i;
 	for(i = 0; i < indent; i++) printf("\t");
-	printf("%p: ", b);
+	printf("%p: ", (void*)b);
 	if(!b) {
 		printf("\n");
 		return;
@@ -420,9 +422,10 @@ bt_dump_(struct bt_node *b, int indent) {
 		}
 
 		if(b->entries[i].key) {
-			printf("(%zd) ", b->entries[i].key_size);
+			int ret;
+			printf("(%d) ", (int)b->entries[i].key_size);
 			fflush(stdout);
-			int ret = write(1, b->entries[i].key, b->entries[i].key_size);
+			ret = write(1, b->entries[i].key, b->entries[i].key_size);
 			(void)ret;
 			printf(" [v=%d, sz=%d]", b->entries[i].value_offset, 
 					b->entries[i].value_size);
@@ -453,6 +456,7 @@ bt_dump(struct bt_node *b) {
 static uint32_t
 bt_dump_block(struct bt_node *b, char *p, uint32_t *offsets, uint16_t *sizes) {
 
+	int i;
 	char *p_start = p;
 
 	/* write block size */
@@ -461,7 +465,6 @@ bt_dump_block(struct bt_node *b, char *p, uint32_t *offsets, uint16_t *sizes) {
 	p += sizeof(uint16_t);
 	
 	/* write block entries */
-	int i;
 	for(i = 0; i < b->n; i++) {
 		uint32_t k_sz, v_o, v_sz;
 		k_sz = htonl(b->entries[i].key_size);
@@ -521,7 +524,6 @@ bt_save_to_mmap(struct bt_node *b, char *p, uint32_t *off, uint16_t *self_size) 
 			uint16_t child_size;
 			offsets[i] = bt_save_to_mmap(b->children[i], p, off, &child_size);
 			sizes[i] = child_size;
-			//printf("%p: child %d: offset=%d, size=%d\n", b, i, (int)offsets[i], (int)sizes[i]);
 		} else {
 			offsets[i] = 0;
 			sizes[i] = 0;
@@ -532,7 +534,6 @@ bt_save_to_mmap(struct bt_node *b, char *p, uint32_t *off, uint16_t *self_size) 
 	free(offsets);
 	
 	ret = *off;
-	//printf("writing %p at offset %d\n", b, (int)*off);
 	(*off) += *self_size;
 
 	return ret;
@@ -542,8 +543,7 @@ struct bt_node_static *
 bt_load_at_offset(int fd, uint32_t offset, uint16_t sz) {
 
 	int i, ret;
-
-	// printf("loading %d bytes from offset %d\n", (int)sz, (int)offset);
+	char *p;
 
 	struct bt_node_static *b = calloc(sizeof(struct bt_node_static), 1);
 
@@ -558,7 +558,7 @@ bt_load_at_offset(int fd, uint32_t offset, uint16_t sz) {
 	b->children_offsets = calloc(1+b->n, sizeof(uint32_t));
 	b->children_sizes = calloc(1+b->n, sizeof(uint16_t));
 
-	char *p = b->buffer + sizeof(uint16_t);
+	p = b->buffer + sizeof(uint16_t);
 
 	/* read keys & values */
 	for(i = 0; i < b->n; i++) {
@@ -614,7 +614,6 @@ bt_find_on_disk(int fd, uint32_t offset, uint16_t size, const char *key, uint16_
 	int i;
 
 	struct bt_node_static *bs = bt_load_at_offset(fd, offset, size);
-//	printf("bs->n = %d\n", (int)bs->n);
 	for(i = 0; i <= bs->n; ++i) {
 		int cmp = 0;
 		if(i != bs->n) {
@@ -637,7 +636,6 @@ bt_find_on_disk(int fd, uint32_t offset, uint16_t size, const char *key, uint16_
 		}
 	}
 	bt_static_free(bs);
-	// printf("not found\n");
 	return -1;
 }
 

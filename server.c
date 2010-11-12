@@ -10,8 +10,6 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 
-#define THRESHOLD_MAX_COUNT	100000
-
 struct server *
 server_new() {
 
@@ -31,9 +29,10 @@ server_get(struct server *s, struct client *c) {
 	char *str;
 	size_t sz;
 
+	/* HT lookup */
 	str = dict_get(s->d, c->key, c->key_sz, &sz);
 
-	/* send reply */
+	/* send reply to client */
 	if(str) {
 		cmd_reply(c, REPLY_STRING, str, sz);
 	} else {
@@ -44,13 +43,11 @@ server_get(struct server *s, struct client *c) {
 void
 server_set(struct server *s, struct client *c) {
 
+	/* duplicate client value */
 	char *str = malloc(c->val_sz);
 	memcpy(str, c->val, c->val_sz);
-
-	//printf("set [%s] -> (%d)[", c->key, c->val_sz); fflush(stdout);
-	//write(1, str, c->val_sz);
-	//printf("]\n");
 	
+	/* log write */
 	log_record(s->log, c);
 
 	dict_set(s->d, c->key, c->key_sz, str, c->val_sz);

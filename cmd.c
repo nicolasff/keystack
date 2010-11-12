@@ -1,5 +1,6 @@
 #include <string.h>
 #include <stdio.h>
+#include <unistd.h>
 
 #include <cmd.h>
 #include <ht/dict.h>
@@ -55,9 +56,6 @@ cmd_parse(struct client *c) {
  */
 void
 cmd_run(struct client *c) {
-
-	struct server *s = c->s;
-	void* v;
 
 	switch(c->cmd) {
 		case CMD_GET:

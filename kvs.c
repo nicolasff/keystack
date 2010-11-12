@@ -9,7 +9,12 @@ int
 main(int argc, char *argv[]) {
 
 	struct server *s;
-	int fd = net_start("0.0.0.0", 1277);
+	int fd;
+	
+	(void)argc;
+	(void)argv;
+
+	fd = net_start("0.0.0.0", 1277);
 
 	printf("listening on socket %d\n", fd);
 	s = server_new();

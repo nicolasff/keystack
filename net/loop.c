@@ -11,6 +11,7 @@
 #include <client.h>
 #include <cmd.h>
 
+#define USING_SYSLOG	0
 
 /**
  * Sets up a non-blocking socket
@@ -33,35 +34,45 @@ net_start(const char *ip, short port) {
 	/* create socket */
 	fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 	if (-1 == fd) {
+#if USING_SYSLOG
 		syslog(LOG_ERR, "Socket error: %m\n");
+#endif
 		return -1;
 	}
 
 	/* reuse address if we've bound to it before. */
 	if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &reuse,
 				sizeof(reuse)) < 0) {
+#if USING_SYSLOG
 		syslog(LOG_ERR, "setsockopt error: %m\n");
+#endif
 		return -1;
 	}
 
 	/* set socket as non-blocking. */
 	ret = fcntl(fd, F_SETFD, O_NONBLOCK);
 	if (0 != ret) {
+#if USING_SYSLOG
 		syslog(LOG_ERR, "fcntl error: %m\n");
+#endif
 		return -1;
 	}
 
 	/* bind */
 	ret = bind(fd, (struct sockaddr*)&addr, sizeof(addr));
 	if (0 != ret) {
+#if USING_SYSLOG
 		syslog(LOG_ERR, "Bind error: %m\n");
+#endif
 		return -1;
 	}
 
 	/* listen */
 	ret = listen(fd, SOMAXCONN);
 	if (0 != ret) {
+#if USING_SYSLOG
 		syslog(LOG_DEBUG, "Listen error: %m\n");
+#endif
 		return -1;
 	}
 
@@ -74,6 +85,8 @@ on_available_data(int fd, short event, void *ptr) {
 
 	int ret;
 	struct client *c = ptr;
+
+	(void)event;
 
 	/* read key size */
 	ret = read(fd, c->buffer + c->buffer_got, c->buffer_sz - c->buffer_got);
@@ -88,7 +101,6 @@ on_available_data(int fd, short event, void *ptr) {
 	}
 
 	if(c->buffer_got == c->buffer_sz) {
-		/* TODO: process cmd */
 		cmd_parse(c);
 		cmd_run(c);
 	} else {
@@ -102,6 +114,8 @@ on_available_header(int fd, short event, void *ptr) {
 
 	struct client *c = ptr;
 	int ret;
+
+	(void)event;
 
 	ret = read(fd, &c->buffer_sz, sizeof(uint32_t));
 	if(ret != sizeof(uint32_t)) {
@@ -120,18 +134,18 @@ on_available_header(int fd, short event, void *ptr) {
 
 static void
 on_connect(int fd, short event, void *ptr) {
-	(void)event;
-
 
 	struct server *s = ptr;
+	struct client *c;
 	struct sockaddr_in addr;
-	socklen_t addr_sz = sizeof(addr);
 	int client_fd;
+	socklen_t addr_sz = sizeof(addr);
 
-	printf("on_connect\n");
+	(void)event;
+
 	client_fd = accept(fd, (struct sockaddr*)&addr, &addr_sz);
 
-	struct client *c = calloc(sizeof(struct client), 1);
+	c = calloc(sizeof(struct client), 1);
 	c->fd = client_fd;
 	c->s = s;
 
