@@ -58,8 +58,6 @@ cmd_run(struct client *c) {
 
 	struct server *s = c->s;
 	void* v;
-	char *str;
-	size_t sz;
 
 	switch(c->cmd) {
 		case CMD_GET:

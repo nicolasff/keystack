@@ -1,5 +1,5 @@
 OUT=db
-OBJS=test.o btree/bt.o ht/dict.o net/loop.o cmd.o server.o client.o dump.o
+OBJS=test.o btree/bt.o ht/dict.o net/loop.o cmd.o server.o client.o log.o
 CFLAGS=-O0 -ggdb -I. -pthread
 LDFLAGS=-lrt -levent -pthread
 
