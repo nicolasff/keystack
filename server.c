@@ -11,14 +11,14 @@
 #include <fcntl.h>
 
 struct server *
-server_new() {
+server_new(const char *logfile) {
 
 	struct server *s = calloc(sizeof(struct server), 1);
 	s->d = dict_new(1024);
 	s->d->key_dup = strndup;
 	s->base = event_base_new();
 
-	s->log = log_open("/tmp/log");
+	s->log = log_open(logfile);
 
 	return s;
 }

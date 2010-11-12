@@ -14,7 +14,7 @@ struct server {
 };
 
 struct server *
-server_new();
+server_new(const char *logfile);
 
 void
 server_set(struct server *s, struct client *c);
