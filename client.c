@@ -8,7 +8,6 @@
 void
 client_reset(struct client *c) {
 
-	free(c->buffer);
 	c->buffer_got = c->buffer_sz = 0;
 
 	client_listen(c, on_available_header);

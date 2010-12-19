@@ -13,10 +13,16 @@
 struct server *
 server_new(const char *logfile) {
 
+	struct stat file_info;
+
 	struct server *s = calloc(sizeof(struct server), 1);
 	s->d = dict_new(1024);
 	s->d->key_dup = strndup;
 	s->base = event_base_new();
+
+	if(0 == stat(logfile, &file_info)) { /* file exists, rewrite. */
+		log_rewrite(logfile, s);
+	}
 
 	s->log = log_open(logfile);
 
@@ -51,7 +57,9 @@ server_set(struct server *s, struct cmd *c) {
 	memcpy(str, c->val, c->val_size);
 	
 	/* log write */
-	log_record(s->log, c);
+	if(s->log) {
+		log_record(s->log, c);
+	}
 
 	dict_set(s->d, (char*)c->key, c->key_size, str, c->val_size);
 

@@ -16,6 +16,12 @@ cmd_new(const char *p, uint32_t size) {
 	return c;
 }
 
+void
+cmd_free(struct cmd *c) {
+	free((char*)c->raw);
+	free(c);
+}
+
 static struct cmd *
 cmd_parse_get(const char *p, uint32_t size) {
 

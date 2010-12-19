@@ -105,9 +105,12 @@ on_available_data(int fd, short event, void *ptr) {
 	}
 
 	if(c->buffer_got == c->buffer_sz) {
-		struct cmd *cmd = cmd_parse(c->buffer, c->buffer_sz);
-		cmd->client = c;
-		cmd_run(c->s, cmd);
+		struct cmd *cm = cmd_parse(c->buffer, c->buffer_sz);
+		cm->client = c;
+		cmd_run(c->s, cm);
+		cmd_free(cm);
+
+		client_reset(c);
 	} else {
 		/* wait for more */
 		client_listen(c, on_available_data);

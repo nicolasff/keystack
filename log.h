@@ -15,8 +15,6 @@ struct log_msg {
 struct log {
 	int fd;
 	time_t last_flush;
-	
-	queue_t *q;
 };
 
 struct log *
@@ -29,6 +27,6 @@ void
 log_close(struct log *l);
 
 void
-log_import(const char *filename, struct server *s);
+log_rewrite(const char *filename, struct server *s);
 
 #endif

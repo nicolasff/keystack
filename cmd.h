@@ -30,5 +30,8 @@ cmd_run(struct server *s, struct cmd *c);
 void
 cmd_reply(struct client *c, reply_type t, ...);
 
+void
+cmd_free(struct cmd *c);
+
 #endif
 
