@@ -20,4 +20,7 @@ client_reset(struct client *c);
 void
 client_listen(struct client *c, void (*fun)(int, short, void*));
 
+void
+client_free(struct client *c);
+
 #endif

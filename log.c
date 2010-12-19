@@ -46,12 +46,6 @@ log_record(struct log *l, struct cmd *c) {
 }
 
 void
-log_close(struct log *l) {
-	/* FIXME */
-	close(l->fd);
-}
-
-void
 log_add_cb(char *key, size_t key_size, char* val, size_t val_size, void *ctx) {
 
 	int fd;
@@ -126,7 +120,7 @@ log_rewrite(const char *filename, struct server *s) {
 	printf("done.\nRewriting log file... "); fflush(stdout);
 
 	/* second, write to tmp file. */
-	tmp_fd = mkostemp(tmp_filename, O_APPEND);
+	tmp_fd = mkstemp(tmp_filename);
 	if(tmp_fd == -1) {
 		fprintf(stderr, "Failed to create tmp log file.\n");
 		return;

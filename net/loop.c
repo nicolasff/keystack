@@ -94,11 +94,8 @@ on_available_data(int fd, short event, void *ptr) {
 
 	/* read key size */
 	ret = read(fd, c->buffer + c->buffer_got, c->buffer_sz - c->buffer_got);
-	if(ret < 0) {
-		/* TODO: fail */
-		return;
-	} else if(ret == 0) {
-		/* TODO: fail */
+	if(ret <= 0) { /* error */
+		client_free(c);
 		return;
 	} else {
 		c->buffer_got += ret;
@@ -153,7 +150,7 @@ on_connect(int fd, short event, void *ptr) {
 
 	client_fd = accept(fd, (struct sockaddr*)&addr, &addr_sz);
 
-	c = calloc(sizeof(struct client), 1);
+	c = calloc(1, sizeof(struct client));
 	c->fd = client_fd;
 	c->s = s;
 

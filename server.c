@@ -10,6 +10,13 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 
+static char *
+duplicate_key(const char *k, size_t sz) {
+
+	char *ret = malloc(sz);
+	return memcpy(ret, k, sz);
+}
+
 struct server *
 server_new(const char *logfile) {
 
@@ -17,7 +24,7 @@ server_new(const char *logfile) {
 
 	struct server *s = calloc(sizeof(struct server), 1);
 	s->d = dict_new(1024);
-	s->d->key_dup = strndup;
+	s->d->key_dup = duplicate_key;
 	s->base = event_base_new();
 
 	if(0 == stat(logfile, &file_info)) { /* file exists, rewrite. */

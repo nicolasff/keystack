@@ -1,7 +1,7 @@
 OUT=keystack
 OBJS=keystack.o btree/bt.o ht/dict.o net/loop.o cmd.o server.o client.o log.o queue.o
-CFLAGS=-O0 -ggdb -I. -pthread -Wall -Wextra -pedantic
-LDFLAGS=-lrt -levent -pthread
+CFLAGS=-O0 -ggdb -I. -Wall -Wextra -pedantic
+LDFLAGS=-lrt -levent
 
 all: $(OUT) Makefile
 
