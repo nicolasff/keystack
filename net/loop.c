@@ -151,14 +151,13 @@ on_connect(int fd, short event, void *ptr) {
 	client_fd = accept(fd, (struct sockaddr*)&addr, &addr_sz);
 
 	c = calloc(1, sizeof(struct client));
-	c->ev = malloc(sizeof(struct event));
 	c->fd = client_fd;
 	c->s = s;
 
 	/* wait for new data */
-	event_set(c->ev, c->fd, EV_READ, on_available_header, c);
-	event_base_set(s->base, c->ev);
-	event_add(c->ev, NULL);
+	event_set(&c->ev, c->fd, EV_READ, on_available_header, c);
+	event_base_set(s->base, &c->ev);
+	event_add(&c->ev, NULL);
 }
 
 void

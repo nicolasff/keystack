@@ -6,7 +6,7 @@
 struct client {
 
 	int fd;
-	struct event *ev;
+	struct event ev;
 	struct server *s;
 
 	char *buffer;

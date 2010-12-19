@@ -16,19 +16,16 @@ client_reset(struct client *c) {
 
 void
 client_listen(struct client *c, void (*fun)(int, short, void*)) {
-	event_set(c->ev, c->fd, EV_READ, fun, c);
-	event_base_set(c->s->base, c->ev);
-	event_add(c->ev, NULL);
+	event_del(&c->ev);
+	event_set(&c->ev, c->fd, EV_READ, fun, c);
+	event_base_set(c->s->base, &c->ev);
+	event_add(&c->ev, NULL);
 }
 
 void
 client_free(struct client *c) {
 
-	event_del(c->ev);
-	free(c->ev);
-
 	close(c->fd);
-
 	free(c->buffer);
 	free(c);
 }
