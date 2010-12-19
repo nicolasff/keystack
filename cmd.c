@@ -67,6 +67,7 @@ cmd_parse(const char *p, uint32_t size) {
 	/* command */
 	switch((uint32_t)p[0]) {
 		case CMD_GET:
+		case CMD_DEL:
 			return cmd_parse_get(p, size);
 
 		case CMD_SET:
@@ -85,6 +86,10 @@ cmd_run(struct server *s, struct cmd *c) {
 	switch(c->type) {
 		case CMD_GET:
 			server_get(s, c);
+			break;
+
+		case CMD_DEL:
+			server_del(s, c);
 			break;
 
 		case CMD_SET:

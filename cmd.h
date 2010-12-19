@@ -5,7 +5,7 @@
 #include <client.h>
 
 typedef enum {REPLY_BOOL, REPLY_STRING} reply_type;
-typedef enum {CMD_GET = 1, CMD_SET} cmd_type;
+typedef enum {CMD_GET = 1, CMD_SET, CMD_DEL} cmd_type;
 
 struct cmd {
 	cmd_type type;

@@ -50,6 +50,19 @@ server_get(struct server *s, struct cmd *c) {
 }
 
 void
+server_del(struct server *s, struct cmd *c) {
+
+	/* HT lookup */
+	int ret = dict_remove(s->d, (char*)c->key, c->key_size);
+
+	/* send reply to client */
+	if(!c->client) {
+		return;
+	}
+	cmd_reply(c->client, REPLY_BOOL, (ret == 0 ? 1 : 0));
+}
+
+void
 server_set(struct server *s, struct cmd *c) {
 
 	/* duplicate client value */

@@ -22,5 +22,8 @@ server_set(struct server *s, struct cmd *c);
 void
 server_get(struct server *s, struct cmd *c);
 
+void
+server_del(struct server *s, struct cmd *c);
+
 #endif
 

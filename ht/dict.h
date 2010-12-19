@@ -58,6 +58,10 @@ dict_set(struct dict *d, char *k, size_t k_sz, char *v, size_t v_sz);
 char*
 dict_get(struct dict *d, char *k, size_t k_sz, size_t *v_sz);
 
+/* delete d[k], with sz = length(k). returns 0 if deleted. */
+int
+dict_remove(struct dict *d, char *k, size_t sz);
+
 /* key, key size, value, "data" extra */
 typedef void (*foreach_cb)(char *, size_t, char*, size_t, void*);
 
