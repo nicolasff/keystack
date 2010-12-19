@@ -16,7 +16,6 @@ main(int argc, char *argv[]) {
 	(void)argv;
 
 	fd = net_start("0.0.0.0", 1277);
-	
 
 	printf("listening on socket %d\n", fd);
 	s = server_new("/tmp/log");

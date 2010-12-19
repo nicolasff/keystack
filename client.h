@@ -9,14 +9,6 @@ struct client {
 	struct event ev;
 	struct server *s;
 
-	char cmd;
-	
-	uint32_t key_sz;
-	char *key;
-
-	uint32_t val_sz;
-	char *val;
-
 	char *buffer;
 	uint32_t buffer_sz;
 	uint32_t buffer_got;

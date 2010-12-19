@@ -10,10 +10,6 @@ client_reset(struct client *c) {
 
 	free(c->buffer);
 	c->buffer_got = c->buffer_sz = 0;
-	c->cmd = -1;
-
-	c->key_sz = c->val_sz = 0;
-	c->key = c->val = NULL;
 
 	client_listen(c, on_available_header);
 }

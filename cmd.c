@@ -6,64 +6,83 @@
 #include <ht/dict.h>
 #include <server.h>
 
-static void
-cmd_parse_get(struct client *c) {
+struct cmd *
+cmd_new(const char *p, uint32_t size) {
 
-	/* key size */
-	memcpy(&c->key_sz, c->buffer + 1, sizeof(uint32_t));
-	c->key_sz = ntohl(c->key_sz);
+	struct cmd *c = calloc(1, sizeof(struct cmd));
+	c->raw = p;
+	c->raw_size = size;
 
-	/* key */
-	c->key = c->buffer + 1 + sizeof(uint32_t);
+	return c;
 }
 
-static void
-cmd_parse_set(struct client *c) {
+static struct cmd *
+cmd_parse_get(const char *p, uint32_t size) {
+
+	struct cmd *c = cmd_new(p, size);
+	c->type = CMD_GET;
 
 	/* key size */
-	memcpy(&c->key_sz, c->buffer + 1, sizeof(uint32_t));
-	c->key_sz = ntohl(c->key_sz);
+	memcpy(&c->key_size, p + 1, sizeof(uint32_t));
+	c->key_size = ntohl(c->key_size);
 
 	/* key */
-	c->key = c->buffer + 1 + sizeof(uint32_t);
+	c->key = p + 1 + sizeof(uint32_t);
+
+	return c;
+}
+
+static struct cmd *
+cmd_parse_set(const char *p, uint32_t size) {
+
+	struct cmd *c = cmd_new(p, size);
+	c->type = CMD_SET;
+
+	/* key size */
+	memcpy(&c->key_size, p + 1, sizeof(uint32_t));
+	c->key_size = ntohl(c->key_size);
+
+	/* key */
+	c->key = p + 1 + sizeof(uint32_t);
 
 	/* value size */
-	memcpy(&c->val_sz, c->buffer + 1 + sizeof(uint32_t) + c->key_sz, sizeof(uint32_t));
-	c->val_sz = ntohl(c->val_sz);
+	memcpy(&c->val_size, p + 1 + sizeof(uint32_t) + c->key_size, sizeof(uint32_t));
+	c->val_size = ntohl(c->val_size);
 
 	/* value */
-	c->val = c->buffer + 1 + sizeof(uint32_t) + c->key_sz + sizeof(uint32_t);
+	c->val = p + 1 + sizeof(uint32_t) + c->key_size + sizeof(uint32_t);
+
+	return c;
 }
 
-void
-cmd_parse(struct client *c) {
+struct cmd *
+cmd_parse(const char *p, uint32_t size) {
 
 	/* command */
-	c->cmd = c->buffer[0];
-	switch(c->cmd) {
+	switch((uint32_t)p[0]) {
 		case CMD_GET:
-			cmd_parse_get(c);
-			break;
+			return cmd_parse_get(p, size);
 
 		case CMD_SET:
-			cmd_parse_set(c);
-			break;
+			return cmd_parse_set(p, size);
 	}
+
+	return NULL;
 }
 
 /**
  * Run command
  */
 void
-cmd_run(struct client *c) {
+cmd_run(struct server *s, struct cmd *c) {
 
-	switch(c->cmd) {
+	switch(c->type) {
 		case CMD_GET:
-			server_get(c->s, c);
+			server_get(s, c);
 			break;
 
 		case CMD_SET:
-			server_set(c->s, c);
+			server_set(s, c);
 			break;
 	}
 }

@@ -24,33 +24,41 @@ server_new(const char *logfile) {
 }
 
 void
-server_get(struct server *s, struct client *c) {
+server_get(struct server *s, struct cmd *c) {
 
 	char *str;
 	size_t sz;
 
 	/* HT lookup */
-	str = dict_get(s->d, c->key, c->key_sz, &sz);
+	str = dict_get(s->d, (char*)c->key, c->key_size, &sz);
 
 	/* send reply to client */
+	if(!c->client) {
+		return;
+	}
 	if(str) {
-		cmd_reply(c, REPLY_STRING, str, sz);
+		cmd_reply(c->client, REPLY_STRING, str, sz);
 	} else {
-		cmd_reply(c, REPLY_BOOL, 0);
+		cmd_reply(c->client, REPLY_BOOL, 0);
 	}
 }
 
 void
-server_set(struct server *s, struct client *c) {
+server_set(struct server *s, struct cmd *c) {
 
 	/* duplicate client value */
-	char *str = malloc(c->val_sz);
-	memcpy(str, c->val, c->val_sz);
+	char *str = malloc(c->val_size);
+	memcpy(str, c->val, c->val_size);
 	
 	/* log write */
 	log_record(s->log, c);
 
-	dict_set(s->d, c->key, c->key_sz, str, c->val_sz);
-	cmd_reply(c, REPLY_BOOL, 1);
+	dict_set(s->d, (char*)c->key, c->key_size, str, c->val_size);
+
+	/* send reply to client */
+	if(!c->client) {
+		return;
+	}
+	cmd_reply(c->client, REPLY_BOOL, 1);
 }
 

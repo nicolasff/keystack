@@ -4,7 +4,7 @@
 #include <event.h>
 
 struct dict;
-struct client;
+struct cmd;
 struct log;
 
 struct server {
@@ -17,10 +17,10 @@ struct server *
 server_new(const char *logfile);
 
 void
-server_set(struct server *s, struct client *c);
+server_set(struct server *s, struct cmd *c);
 
 void
-server_get(struct server *s, struct client *c);
+server_get(struct server *s, struct cmd *c);
 
 #endif
 

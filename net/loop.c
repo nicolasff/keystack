@@ -23,6 +23,10 @@ net_start(const char *ip, short port) {
 	struct sockaddr_in addr;
 	int fd, ret;
 
+#ifdef SIGPIPE
+	signal(SIGPIPE, SIG_IGN);
+#endif
+
 	addr.sin_family = AF_INET;
 	addr.sin_port = htons(port);
 
@@ -101,8 +105,9 @@ on_available_data(int fd, short event, void *ptr) {
 	}
 
 	if(c->buffer_got == c->buffer_sz) {
-		cmd_parse(c);
-		cmd_run(c);
+		struct cmd *cmd = cmd_parse(c->buffer, c->buffer_sz);
+		cmd->client = c;
+		cmd_run(c->s, cmd);
 	} else {
 		/* wait for more */
 		client_listen(c, on_available_data);
@@ -159,10 +164,6 @@ void
 net_loop(int fd, struct server *s) {
 
 	struct event ev;
-
-#ifdef SIGPIPE
-	signal(SIGPIPE, SIG_IGN);
-#endif
 
 	event_set(&ev, fd, EV_READ | EV_PERSIST, on_connect, s);
 	event_base_set(s->base, &ev);
